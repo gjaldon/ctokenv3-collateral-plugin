@@ -18,6 +18,7 @@ contract CTokenV3Collateral is ICollateral {
 
     uint192 public immutable defaultThreshold; // {%} e.g. 0.05
     uint192 public prevReferencePrice; // previous rate, {collateral/reference}
+    address public immutable rewardsAddr;
     
     constructor(
         uint192 fallbackPrice_,
@@ -29,7 +30,7 @@ contract CTokenV3Collateral is ICollateral {
         bytes32 targetName_,
         uint192 defaultThreshold_,
         uint256 delayUntilDefault_,
-        address comptrollerAddr_
+        address rewardsAddr_
     ) {
         require(fallbackPrice_ > 0, "fallback price zero");
         require(address(chainlinkFeed_) != address(0), "missing chainlink feed");
@@ -38,6 +39,7 @@ contract CTokenV3Collateral is ICollateral {
         require(oracleTimeout_ > 0, "oracleTimeout zero");
         require(address(rewardERC20_) != address(0), "rewardERC20 missing");
         require(defaultThreshold_ > 0, "defaultThreshold zero");
+        require(address(rewardsAddr_) != address(0), "rewardsAddr missing");
 
         fallbackPrice = fallbackPrice_;
         chainlinkFeed = chainlinkFeed_;
@@ -48,6 +50,7 @@ contract CTokenV3Collateral is ICollateral {
         oracleTimeout = oracleTimeout_;
         defaultThreshold = defaultThreshold_;
         prevReferencePrice = refPerTok();
+        rewardsAddr = rewardsAddr_;
     }
 
     /// @dev Since cUSDCv3 has an exchange rate of 1:1 with USDC, then {UoA/tok} = {UoA/ref}.
@@ -59,5 +62,25 @@ contract CTokenV3Collateral is ICollateral {
     /// @return {ref/tok} Quantity of whole reference units per whole collateral tokens
     function refPerTok() public view override returns (uint192) {
         return 1;
+    }
+
+    function bal(address account) external view returns (uint192) {
+        return shiftl_toFix(erc20.balanceOf(account), -int8(erc20Decimals));
+    }
+
+    function getClaimCalldata()
+        external
+        view
+        virtual
+        override
+        returns (address _to, bytes memory _cd)
+    {
+        _to = rewardsAddr;
+        _cd = abi.encodeWithSignature(
+            "function claim(address, address, bool)",
+            address(erc20),
+            msg.sender,
+            true
+        );
     }
 }
