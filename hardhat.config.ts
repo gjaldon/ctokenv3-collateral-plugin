@@ -1,7 +1,20 @@
 import { HardhatUserConfig } from "hardhat/config";
+import dotenv from "dotenv";
 import "@nomicfoundation/hardhat-toolbox";
 
+dotenv.config()
+
+const MAINNET_RPC_URL = process.env.MAINNET_RPC_URL || "";
+
 const config: HardhatUserConfig = {
+  networks: {
+    hardhat: {
+      forking: {
+        url: MAINNET_RPC_URL,
+        blockNumber: 15850930
+      }
+    }
+  },
   solidity: "0.8.17",
 };
 
