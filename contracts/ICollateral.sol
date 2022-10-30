@@ -64,6 +64,14 @@ enum CollateralStatus {
  * @notice A subtype of Asset that consists of the tokens eligible to back the RToken.
  */
 interface ICollateral is IAsset {
+    /// Emitted whenever the collateral status is changed
+    /// @param newStatus The old CollateralStatus
+    /// @param newStatus The updated CollateralStatus
+    event DefaultStatusChanged(
+        CollateralStatus indexed oldStatus,
+        CollateralStatus indexed newStatus
+    );
+
     /// Refresh exchange rates and update default status.
     /// The Reserve protocol calls this at least once per transaction, before relying on
     /// this collateral's prices or default status.
