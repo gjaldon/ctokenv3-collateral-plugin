@@ -12,6 +12,7 @@ contract CTokenV3Collateral is ICollateral {
     AggregatorV3Interface public immutable chainlinkFeed;
     IERC20Metadata public immutable erc20;
     IERC20 public immutable rewardERC20;
+    int8 public immutable referenceERC20Decimals;
     uint8 public immutable erc20Decimals;
     uint192 public immutable maxTradeVolume; // {UoA}
     uint192 public immutable fallbackPrice; // {UoA}
@@ -35,7 +36,8 @@ contract CTokenV3Collateral is ICollateral {
         bytes32 targetName_,
         uint192 defaultThreshold_,
         uint256 delayUntilDefault_,
-        address rewardsAddr_
+        address rewardsAddr_,
+        int8 referenceERC20Decimals_
     ) {
         require(fallbackPrice_ > 0, "fallback price zero");
         require(address(chainlinkFeed_) != address(0), "missing chainlink feed");
@@ -47,6 +49,7 @@ contract CTokenV3Collateral is ICollateral {
         require(address(rewardsAddr_) != address(0), "rewardsAddr missing");
         require(targetName_ != bytes32(0), "targetName missing");
         require(delayUntilDefault_ > 0, "delayUntilDefault zero");
+        require(referenceERC20Decimals_ > 0, "referenceERC20Decimals missing");
 
         targetName = targetName_;
         delayUntilDefault = delayUntilDefault_;
@@ -59,6 +62,7 @@ contract CTokenV3Collateral is ICollateral {
         oracleTimeout = oracleTimeout_;
         defaultThreshold = defaultThreshold_;
         rewardsAddr = rewardsAddr_;
+        referenceERC20Decimals = referenceERC20Decimals_;
     }
 
     /// Refresh exchange rates and update default status.
