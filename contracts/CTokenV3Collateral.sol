@@ -5,9 +5,11 @@ import "./ICollateral.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "./vendor/reserve/OracleLib.sol";
+import "./vendor/reserve/Fixed.sol";
 
 contract CTokenV3Collateral is ICollateral {
     using OracleLib for AggregatorV3Interface;
+    using FixLib for uint192;
 
     AggregatorV3Interface public immutable chainlinkFeed;
     IERC20Metadata public immutable erc20;

@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
 import { ContractFactory, BigNumber } from 'ethers'
-import { OracleLib } from '../typechain-types'
+import { OracleLib, MockV3Aggregator } from '../typechain-types'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
 
 export const pow10 = (exponent: number): BigNumber => {
@@ -148,10 +148,16 @@ describe('Prices #fast', () => {
     const CTokenV3CollateralFactory = await ethers.getContractFactory('CTokenV3Collateral', {
       libraries: { OracleLib: oracleLib.address },
     })
+    const MockV3AggregatorFactory: ContractFactory = await ethers.getContractFactory(
+      'MockV3Aggregator'
+    )
+    const chainlinkFeed: MockV3Aggregator = <MockV3Aggregator>(
+      await MockV3AggregatorFactory.deploy(6, BigNumber.from(1).mul(pow10(8)))
+    )
 
     const collateral = await CTokenV3CollateralFactory.deploy(
       1,
-      USDCtoUSDPriceFeedAddr,
+      chainlinkFeed.address,
       cUSDCv3Addr,
       compAddr,
       rTokenMaxTradeVolume,
@@ -163,36 +169,31 @@ describe('Prices #fast', () => {
       USDC_DECIMALS
     )
     await collateral.deployed()
-    return collateral
+    return { collateral, chainlinkFeed }
   }
 
   it('Should calculate prices correctly', async () => {
-    const collateral = await loadFixture(deployCollateral)
-    const chainlinkFeed = await ethers.getContractAt(
-      'AggregatorV3Interface',
-      USDCtoUSDPriceFeedAddr
-    )
+    const { collateral, chainlinkFeed } = await loadFixture(deployCollateral)
     const { answer } = await chainlinkFeed.latestRoundData()
     const decimals = await chainlinkFeed.decimals()
 
     // Check initial prices
-    expect(await collateral.strictPrice()).to.equal(answer.mul(pow10(18 - decimals)))
+    const expectedPrice = answer.mul(pow10(18 - decimals))
+    expect(await collateral.strictPrice()).to.equal(expectedPrice)
 
     // Check refPerTok initial values
-    expect(await collateral.refPerTok()).to.equal(1n * 10n ** 18n) // should equal 1e18
+    const expectedRefPerTok = 1n * 10n ** 18n
+    expect(await collateral.refPerTok()).to.equal(expectedRefPerTok) // should equal 1e18
 
     // Update values in Oracles increase by 10-20%
-    const newPrice = answer
-      .mul(pow10(18 - decimals))
-      .add(BigNumber.from(1000).mul(pow10(18 - decimals)))
-    const v3Aggregator = await ethers.getContractAt('MockV3Aggregator', USDCtoUSDPriceFeedAddr)
-    await v3Aggregator.updateAnswer(newPrice)
-    // await setOraclePrice(collateral.address, bn('1.1e8')) // 10%
+    const newPrice = BigNumber.from(11).mul(pow10(7))
+    const updateAnswerTx = await chainlinkFeed.updateAnswer(newPrice)
+    await updateAnswerTx.wait()
 
     // Check new prices
-    // expect(await collateral.strictPrice()).to.equal(fp('0.022'))
+    expect(await collateral.strictPrice()).to.equal(newPrice.mul(pow10(18 - decimals)))
 
     // Check refPerTok remains the same
-    // expect(await collateral.refPerTok()).to.equal(fp('0.02'))
+    expect(await collateral.refPerTok()).to.equal(expectedRefPerTok)
   })
 })
