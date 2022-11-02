@@ -19,6 +19,12 @@ const rTokenMaxTradeVolume = BigNumber.from(1000000)
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const USDC_DECIMALS = 6
 
+enum CollateralStatus {
+  SOUND,
+  IFFY,
+  DISABLED,
+}
+
 describe('CTokenV3Collateral', () => {
   let CTokenV3CollateralFactory: ContractFactory
 
@@ -195,5 +201,28 @@ describe('Prices #fast', () => {
 
     // Check refPerTok remains the same
     expect(await collateral.refPerTok()).to.equal(expectedRefPerTok)
+  })
+
+  it('Should revert if price is zero', async () => {
+    const { collateral, chainlinkFeed } = await loadFixture(deployCollateral)
+
+    // Set price of USDC to 0
+    const updateAnswerTx = await chainlinkFeed.updateAnswer(0)
+    await updateAnswerTx.wait()
+
+    // Check price of token
+    await expect(collateral.strictPrice()).to.be.revertedWithCustomError(
+      collateral,
+      'PriceOutsideRange'
+    )
+
+    // Fallback price is returned
+    const [isFallback, price] = await collateral.price(true)
+    expect(isFallback).to.equal(true)
+    expect(price).to.equal(await collateral.fallbackPrice())
+
+    // When refreshed, sets status to Unpriced
+    await collateral.refresh()
+    expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
   })
 })
