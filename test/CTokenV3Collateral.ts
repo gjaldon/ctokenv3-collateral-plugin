@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { ethers } from 'hardhat'
+import { ethers, network } from 'hardhat'
 import { ContractFactory, BigNumber } from 'ethers'
 import { OracleLib, MockV3Aggregator } from '../typechain-types'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
@@ -22,6 +22,20 @@ enum CollateralStatus {
 }
 
 const MAX_UINT256 = BigNumber.from(2).pow(256).sub(1)
+
+export const getLatestBlockTimestamp = async (): Promise<number> => {
+  const latestBlock = await ethers.provider.getBlock('latest')
+  return latestBlock.timestamp
+}
+
+export const setNextBlockTimestamp = async (timestamp: number | string) => {
+  await network.provider.send('evm_setNextBlockTimestamp', [timestamp])
+}
+
+export const advanceTime = async (seconds: number | string) => {
+  await ethers.provider.send('evm_increaseTime', [parseInt(seconds.toString())])
+  await ethers.provider.send('evm_mine', [])
+}
 
 async function deployCollateral() {
   const OracleLibFactory: ContractFactory = await ethers.getContractFactory('OracleLib')
@@ -253,67 +267,50 @@ describe('Status', () => {
     expect(await collateral.whenDefault()).to.equal(MAX_UINT256)
   })
 
-  // it('Updates status in case of soft default', async () => {
-  //   const delayUntilDefault: BigNumber = await tokenCollateral.delayUntilDefault()
+  it('Updates status in case of soft default', async () => {
+    const { collateral, chainlinkFeed } = await loadFixture(deployCollateral)
+    const delayUntilDefault = (await collateral.delayUntilDefault()).toBigInt()
 
-  //   // Check initial state
-  //   expect(await tokenCollateral.status()).to.equal(CollateralStatus.SOUND)
-  //   expect(await usdcCollateral.status()).to.equal(CollateralStatus.SOUND)
-  //   expect(await aTokenCollateral.status()).to.equal(CollateralStatus.SOUND)
-  //   expect(await cTokenCollateral.status()).to.equal(CollateralStatus.SOUND)
+    // Check initial state
+    expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
 
-  //   expect(await tokenCollateral.whenDefault()).to.equal(MAX_UINT256)
-  //   expect(await usdcCollateral.whenDefault()).to.equal(MAX_UINT256)
-  //   expect(await aTokenCollateral.whenDefault()).to.equal(MAX_UINT256)
-  //   expect(await cTokenCollateral.whenDefault()).to.equal(MAX_UINT256)
+    expect(await collateral.whenDefault()).to.equal(MAX_UINT256)
 
-  //   // Depeg one of the underlying tokens - Reducing price 20%
-  //   // Should also impact on the aToken and cToken
-  //   await setOraclePrice(tokenCollateral.address, bn('8e7')) // -20%
+    // Depeg USDC:USD - Reducing price by 20% from 1 to 0.8
+    const updateAnswerTx = await chainlinkFeed.updateAnswer(8n * 10n ** 5n)
+    await updateAnswerTx.wait()
 
-  //   // Force updates - Should update whenDefault and status
-  //   let expectedDefaultTimestamp: BigNumber
+    // Force updates - Should update whenDefault and status
+    let expectedDefaultTimestamp: bigint
 
-  //   await expect(usdcCollateral.refresh()).to.not.emit(usdcCollateral, 'DefaultStatusChanged')
-  //   expect(await usdcCollateral.status()).to.equal(CollateralStatus.SOUND)
-  //   expect(await usdcCollateral.whenDefault()).to.equal(MAX_UINT256)
+    // Set next block timestamp - for deterministic result
+    const nextBlockTimestamp = (await getLatestBlockTimestamp()) + 1
+    await setNextBlockTimestamp(nextBlockTimestamp)
+    expectedDefaultTimestamp = BigInt(nextBlockTimestamp) + delayUntilDefault
 
-  //   const softDefaultCollaterals = [tokenCollateral, aTokenCollateral, cTokenCollateral]
-  //   for (const coll of softDefaultCollaterals) {
-  //     // Set next block timestamp - for deterministic result
-  //     await setNextBlockTimestamp((await getLatestBlockTimestamp()) + 1)
+    await expect(collateral.refresh())
+      .to.emit(collateral, 'DefaultStatusChanged')
+      .withArgs(CollateralStatus.SOUND, CollateralStatus.IFFY)
+    expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
+    expect(await collateral.whenDefault()).to.equal(expectedDefaultTimestamp)
 
-  //     expectedDefaultTimestamp = bn(await getLatestBlockTimestamp())
-  //       .add(1)
-  //       .add(delayUntilDefault)
+    // Move time forward past delayUntilDefault
+    await advanceTime(Number(delayUntilDefault))
+    expect(await collateral.status()).to.equal(CollateralStatus.DISABLED)
 
-  //     await expect(coll.refresh())
-  //       .to.emit(coll, 'DefaultStatusChanged')
-  //       .withArgs(CollateralStatus.SOUND, CollateralStatus.IFFY)
-  //     expect(await coll.status()).to.equal(CollateralStatus.IFFY)
-  //     expect(await coll.whenDefault()).to.equal(expectedDefaultTimestamp)
-  //   }
+    // Nothing changes if attempt to refresh after default for ATokens/CTokens
+    // AToken
+    let prevWhenDefault: bigint = (await collateral.whenDefault()).toBigInt()
+    await expect(collateral.refresh()).to.not.emit(collateral, 'DefaultStatusChanged')
+    expect(await collateral.status()).to.equal(CollateralStatus.DISABLED)
+    expect(await collateral.whenDefault()).to.equal(prevWhenDefault)
 
-  //   // Move time forward past delayUntilDefault
-  //   await advanceTime(Number(delayUntilDefault))
-  //   expect(await tokenCollateral.status()).to.equal(CollateralStatus.DISABLED)
-  //   expect(await usdcCollateral.status()).to.equal(CollateralStatus.SOUND)
-  //   expect(await aTokenCollateral.status()).to.equal(CollateralStatus.DISABLED)
-  //   expect(await cTokenCollateral.status()).to.equal(CollateralStatus.DISABLED)
-
-  //   // Nothing changes if attempt to refresh after default for ATokens/CTokens
-  //   // AToken
-  //   let prevWhenDefault: BigNumber = await aTokenCollateral.whenDefault()
-  //   await expect(aTokenCollateral.refresh()).to.not.emit(aTokenCollateral, 'DefaultStatusChanged')
-  //   expect(await aTokenCollateral.status()).to.equal(CollateralStatus.DISABLED)
-  //   expect(await aTokenCollateral.whenDefault()).to.equal(prevWhenDefault)
-
-  //   // CToken
-  //   prevWhenDefault = await cTokenCollateral.whenDefault()
-  //   await expect(cTokenCollateral.refresh()).to.not.emit(cTokenCollateral, 'DefaultStatusChanged')
-  //   expect(await cTokenCollateral.status()).to.equal(CollateralStatus.DISABLED)
-  //   expect(await cTokenCollateral.whenDefault()).to.equal(prevWhenDefault)
-  // })
+    // CToken
+    prevWhenDefault = (await collateral.whenDefault()).toBigInt()
+    await expect(collateral.refresh()).to.not.emit(collateral, 'DefaultStatusChanged')
+    expect(await collateral.status()).to.equal(CollateralStatus.DISABLED)
+    expect(await collateral.whenDefault()).to.equal(prevWhenDefault)
+  })
 
   // it('Updates status in case of hard default', async () => {
   //   // Check initial state
