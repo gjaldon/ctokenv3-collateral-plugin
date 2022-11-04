@@ -328,95 +328,38 @@ describe('Status', () => {
     expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
   })
 
-  // it('Reverts if Chainlink feed reverts or runs out of gas, maintains status - Fiat', async () => {
-  //   const invalidChainlinkFeed: InvalidMockV3Aggregator = <InvalidMockV3Aggregator>(
-  //     await InvalidMockV3AggregatorFactory.deploy(8, bn('1e8'))
-  //   )
+  it('Reverts if Chainlink feed reverts or runs out of gas, maintains status', async () => {
+    const { collateral } = await loadFixture(deployCollateral)
+    const InvalidMockV3AggregatorFactory = await ethers.getContractFactory(
+      'InvalidMockV3Aggregator'
+    )
+    const invalidChainlinkFeed: InvalidMockV3Aggregator = <InvalidMockV3Aggregator>(
+      await InvalidMockV3AggregatorFactory.deploy(6, 1n * 10n ** 6n)
+    )
 
-  //   const invalidTokenCollateral: FiatCollateral = <FiatCollateral>(
-  //     await FiatCollateralFactory.deploy(
-  //       1,
-  //       invalidChainlinkFeed.address,
-  //       await tokenCollateral.erc20(),
-  //       ZERO_ADDRESS,
-  //       await tokenCollateral.maxTradeVolume(),
-  //       await tokenCollateral.oracleTimeout(),
-  //       await tokenCollateral.targetName(),
-  //       await tokenCollateral.defaultThreshold(),
-  //       await tokenCollateral.delayUntilDefault()
-  //     )
-  //   )
+    const CTokenV3CollateralFactory = await makeCollateralFactory()
+    const invalidCollateral = await CTokenV3CollateralFactory.deploy(
+      1,
+      invalidChainlinkFeed.address,
+      await collateral.erc20(),
+      await collateral.rewardERC20(),
+      await collateral.maxTradeVolume(),
+      await collateral.oracleTimeout(),
+      await collateral.targetName(),
+      await collateral.defaultThreshold(),
+      await collateral.delayUntilDefault(),
+      await collateral.rewardsAddr(),
+      await collateral.referenceERC20Decimals()
+    )
 
-  //   // Reverting with no reason
-  //   await invalidChainlinkFeed.setSimplyRevert(true)
-  //   await expect(invalidTokenCollateral.refresh()).to.be.revertedWith('')
-  //   expect(await invalidTokenCollateral.status()).to.equal(CollateralStatus.SOUND)
+    // Reverting with no reason
+    await invalidChainlinkFeed.setSimplyRevert(true)
+    await expect(invalidCollateral.refresh()).to.be.revertedWithoutReason()
+    expect(await invalidCollateral.status()).to.equal(CollateralStatus.SOUND)
 
-  //   // Runnning out of gas (same error)
-  //   await invalidChainlinkFeed.setSimplyRevert(false)
-  //   await expect(invalidTokenCollateral.refresh()).to.be.revertedWith('')
-  //   expect(await invalidTokenCollateral.status()).to.equal(CollateralStatus.SOUND)
-  // })
-
-  // it('Reverts if Chainlink feed reverts or runs out of gas, maintains status - ATokens Fiat', async () => {
-  //   const invalidChainlinkFeed: InvalidMockV3Aggregator = <InvalidMockV3Aggregator>(
-  //     await InvalidMockV3AggregatorFactory.deploy(8, bn('1e8'))
-  //   )
-
-  //   const invalidATokenCollateral: ATokenFiatCollateral = <ATokenFiatCollateral>(
-  //     await ATokenFiatCollateralFactory.deploy(
-  //       1,
-  //       invalidChainlinkFeed.address,
-  //       await aTokenCollateral.erc20(),
-  //       await aTokenCollateral.rewardERC20(),
-  //       await aTokenCollateral.maxTradeVolume(),
-  //       await aTokenCollateral.oracleTimeout(),
-  //       await aTokenCollateral.targetName(),
-  //       await aTokenCollateral.defaultThreshold(),
-  //       await aTokenCollateral.delayUntilDefault()
-  //     )
-  //   )
-
-  //   // Reverting with no reason
-  //   await invalidChainlinkFeed.setSimplyRevert(true)
-  //   await expect(invalidATokenCollateral.refresh()).to.be.revertedWith('')
-  //   expect(await invalidATokenCollateral.status()).to.equal(CollateralStatus.SOUND)
-
-  //   // Runnning out of gas (same error)
-  //   await invalidChainlinkFeed.setSimplyRevert(false)
-  //   await expect(invalidATokenCollateral.refresh()).to.be.revertedWith('')
-  //   expect(await invalidATokenCollateral.status()).to.equal(CollateralStatus.SOUND)
-  // })
-
-  // it('Reverts if Chainlink feed reverts or runs out of gas, maintains status - CTokens Fiat', async () => {
-  //   const invalidChainlinkFeed: InvalidMockV3Aggregator = <InvalidMockV3Aggregator>(
-  //     await InvalidMockV3AggregatorFactory.deploy(8, bn('1e8'))
-  //   )
-
-  //   const invalidCTokenCollateral: CTokenFiatCollateral = <CTokenFiatCollateral>(
-  //     await CTokenFiatCollateralFactory.deploy(
-  //       1,
-  //       invalidChainlinkFeed.address,
-  //       await cTokenCollateral.erc20(),
-  //       await cTokenCollateral.rewardERC20(),
-  //       await cTokenCollateral.maxTradeVolume(),
-  //       await cTokenCollateral.oracleTimeout(),
-  //       await cTokenCollateral.targetName(),
-  //       await cTokenCollateral.defaultThreshold(),
-  //       await cTokenCollateral.delayUntilDefault(),
-  //       18,
-  //       compoundMock.address
-  //     )
-  //   )
-
-  //   // Reverting with no reason
-  //   await invalidChainlinkFeed.setSimplyRevert(true)
-  //   await expect(invalidCTokenCollateral.refresh()).to.be.revertedWith('')
-  //   expect(await invalidCTokenCollateral.status()).to.equal(CollateralStatus.SOUND)
-
-  //   // Runnning out of gas (same error)
-  //   await invalidChainlinkFeed.setSimplyRevert(false)
-  //   await expect(invalidCTokenCollateral.refresh()).to.be.revertedWith('')
-  //   expect(await invalidCTokenCollateral.status()).to.equal(CollateralStatus.SOUND)
-  // })
+    // Runnning out of gas (same error)
+    await invalidChainlinkFeed.setSimplyRevert(false)
+    await expect(invalidCollateral.refresh()).to.be.revertedWithoutReason()
+    expect(await invalidCollateral.status()).to.equal(CollateralStatus.SOUND)
+  })
 })
