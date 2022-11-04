@@ -1,80 +1,27 @@
 import { expect } from 'chai'
-import { ethers, network } from 'hardhat'
-import { ContractFactory, BigNumber } from 'ethers'
-import { OracleLib, MockV3Aggregator, InvalidMockV3Aggregator } from '../typechain-types'
+import { ethers } from 'hardhat'
+import { ContractFactory } from 'ethers'
+import { InvalidMockV3Aggregator } from '../typechain-types'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-
-const USDCtoUSDPriceFeedAddr = '0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6'
-const cUSDCv3Addr = '0xc3d688B66703497DAA19211EEdff47f25384cdc3'
-const compAddr = '0xc00e94Cb662C3520282E6f5717214004A7f26888'
-const rewardsAddr = '0x1B0e765F6224C21223AeA2af16c1C46E38885a40'
-const ORACLE_TIMEOUT = 281474976710655n / 2n // type(uint48).max / 2
-const DEFAULT_THRESHOLD = 5n * 10n ** 16n // 0.05
-const DELAY_UNTIL_DEFAULT = 86400n
-const rTokenMaxTradeVolume = 1000000n
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
-const USDC_DECIMALS = 6
-
-enum CollateralStatus {
-  SOUND,
-  IFFY,
-  DISABLED,
-}
-
-const MAX_UINT256 = BigNumber.from(2).pow(256).sub(1)
-
-export const getLatestBlockTimestamp = async (): Promise<number> => {
-  const latestBlock = await ethers.provider.getBlock('latest')
-  return latestBlock.timestamp
-}
-
-export const setNextBlockTimestamp = async (timestamp: number | string) => {
-  await network.provider.send('evm_setNextBlockTimestamp', [timestamp])
-}
-
-export const advanceTime = async (seconds: number | string) => {
-  await ethers.provider.send('evm_increaseTime', [parseInt(seconds.toString())])
-  await ethers.provider.send('evm_mine', [])
-}
-
-async function makeCollateralFactory(): Promise<ContractFactory> {
-  const OracleLibFactory: ContractFactory = await ethers.getContractFactory('OracleLib')
-  const oracleLib: OracleLib = <OracleLib>await OracleLibFactory.deploy()
-  const CTokenV3CollateralFactory: ContractFactory = await ethers.getContractFactory(
-    'CTokenV3Collateral',
-    {
-      libraries: { OracleLib: oracleLib.address },
-    }
-  )
-
-  return CTokenV3CollateralFactory
-}
-
-async function deployCollateral() {
-  const CTokenV3CollateralFactory = await makeCollateralFactory()
-  const MockV3AggregatorFactory: ContractFactory = await ethers.getContractFactory(
-    'MockV3Aggregator'
-  )
-  const chainlinkFeed: MockV3Aggregator = <MockV3Aggregator>(
-    await MockV3AggregatorFactory.deploy(6, 1n * 10n ** 6n)
-  )
-
-  const collateral = await CTokenV3CollateralFactory.deploy(
-    1,
-    chainlinkFeed.address,
-    cUSDCv3Addr,
-    compAddr,
-    rTokenMaxTradeVolume,
-    ORACLE_TIMEOUT,
-    ethers.utils.formatBytes32String('USD'),
-    DEFAULT_THRESHOLD,
-    DELAY_UNTIL_DEFAULT,
-    rewardsAddr,
-    USDC_DECIMALS
-  )
-  await collateral.deployed()
-  return { collateral, chainlinkFeed }
-}
+import {
+  USDC_USD_PRICE_FEED,
+  CUSDC_V3,
+  COMP_V3,
+  RTOKEN_MAX_TRADE_VOL,
+  ORACLE_TIMEOUT,
+  DEFAULT_THRESHOLD,
+  DELAY_UNTIL_DEFAULT,
+  REWARDS_ADDR,
+  USDC_DECIMALS,
+  ZERO_ADDRESS,
+  deployCollateral,
+  makeCollateralFactory,
+  CollateralStatus,
+  MAX_UINT256,
+  getLatestBlockTimestamp,
+  setNextBlockTimestamp,
+  advanceTime,
+} from './helpers'
 
 describe('CTokenV3Collateral', () => {
   let CTokenV3CollateralFactory: ContractFactory
@@ -88,15 +35,15 @@ describe('CTokenV3Collateral', () => {
       await expect(
         CTokenV3CollateralFactory.deploy(
           1,
-          USDCtoUSDPriceFeedAddr,
-          cUSDCv3Addr,
-          compAddr,
-          rTokenMaxTradeVolume,
+          USDC_USD_PRICE_FEED,
+          CUSDC_V3,
+          COMP_V3,
+          RTOKEN_MAX_TRADE_VOL,
           ORACLE_TIMEOUT,
           ethers.constants.HashZero,
           DEFAULT_THRESHOLD,
           DELAY_UNTIL_DEFAULT,
-          rewardsAddr,
+          REWARDS_ADDR,
           USDC_DECIMALS
         )
       ).to.be.revertedWith('targetName missing')
@@ -106,15 +53,15 @@ describe('CTokenV3Collateral', () => {
       await expect(
         CTokenV3CollateralFactory.deploy(
           1,
-          USDCtoUSDPriceFeedAddr,
-          cUSDCv3Addr,
-          compAddr,
-          rTokenMaxTradeVolume,
+          USDC_USD_PRICE_FEED,
+          CUSDC_V3,
+          COMP_V3,
+          RTOKEN_MAX_TRADE_VOL,
           ORACLE_TIMEOUT,
           ethers.utils.formatBytes32String('USD'),
           0,
           DELAY_UNTIL_DEFAULT,
-          rewardsAddr,
+          REWARDS_ADDR,
           USDC_DECIMALS
         )
       ).to.be.revertedWith('defaultThreshold zero')
@@ -124,15 +71,15 @@ describe('CTokenV3Collateral', () => {
       await expect(
         CTokenV3CollateralFactory.deploy(
           1,
-          USDCtoUSDPriceFeedAddr,
-          cUSDCv3Addr,
-          compAddr,
-          rTokenMaxTradeVolume,
+          USDC_USD_PRICE_FEED,
+          CUSDC_V3,
+          COMP_V3,
+          RTOKEN_MAX_TRADE_VOL,
           ORACLE_TIMEOUT,
           ethers.utils.formatBytes32String('USD'),
           DEFAULT_THRESHOLD,
           0,
-          rewardsAddr,
+          REWARDS_ADDR,
           USDC_DECIMALS
         )
       ).to.be.revertedWith('delayUntilDefault zero')
@@ -142,15 +89,15 @@ describe('CTokenV3Collateral', () => {
       await expect(
         CTokenV3CollateralFactory.deploy(
           1,
-          USDCtoUSDPriceFeedAddr,
-          cUSDCv3Addr,
+          USDC_USD_PRICE_FEED,
+          CUSDC_V3,
           ZERO_ADDRESS,
-          rTokenMaxTradeVolume,
+          RTOKEN_MAX_TRADE_VOL,
           ORACLE_TIMEOUT,
           ethers.utils.formatBytes32String('USD'),
           DEFAULT_THRESHOLD,
           DELAY_UNTIL_DEFAULT,
-          rewardsAddr,
+          REWARDS_ADDR,
           USDC_DECIMALS
         )
       ).to.be.revertedWith('rewardERC20 missing')
@@ -160,15 +107,15 @@ describe('CTokenV3Collateral', () => {
       await expect(
         CTokenV3CollateralFactory.deploy(
           1,
-          USDCtoUSDPriceFeedAddr,
-          cUSDCv3Addr,
-          compAddr,
-          rTokenMaxTradeVolume,
+          USDC_USD_PRICE_FEED,
+          CUSDC_V3,
+          COMP_V3,
+          RTOKEN_MAX_TRADE_VOL,
           ORACLE_TIMEOUT,
           ethers.utils.formatBytes32String('USD'),
           DEFAULT_THRESHOLD,
           DELAY_UNTIL_DEFAULT,
-          rewardsAddr,
+          REWARDS_ADDR,
           0
         )
       ).to.be.revertedWith('referenceERC20Decimals missing')
@@ -178,10 +125,10 @@ describe('CTokenV3Collateral', () => {
       await expect(
         CTokenV3CollateralFactory.deploy(
           1,
-          USDCtoUSDPriceFeedAddr,
-          cUSDCv3Addr,
-          compAddr,
-          rTokenMaxTradeVolume,
+          USDC_USD_PRICE_FEED,
+          CUSDC_V3,
+          COMP_V3,
+          RTOKEN_MAX_TRADE_VOL,
           ORACLE_TIMEOUT,
           ethers.utils.formatBytes32String('USD'),
           DEFAULT_THRESHOLD,
