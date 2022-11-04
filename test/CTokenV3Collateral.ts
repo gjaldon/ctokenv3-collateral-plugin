@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { ethers, network } from 'hardhat'
 import { ContractFactory, BigNumber } from 'ethers'
-import { OracleLib, MockV3Aggregator } from '../typechain-types'
+import { OracleLib, MockV3Aggregator, InvalidMockV3Aggregator } from '../typechain-types'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
 
 const USDCtoUSDPriceFeedAddr = '0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6'
@@ -37,12 +37,21 @@ export const advanceTime = async (seconds: number | string) => {
   await ethers.provider.send('evm_mine', [])
 }
 
-async function deployCollateral() {
+async function makeCollateralFactory(): Promise<ContractFactory> {
   const OracleLibFactory: ContractFactory = await ethers.getContractFactory('OracleLib')
   const oracleLib: OracleLib = <OracleLib>await OracleLibFactory.deploy()
-  const CTokenV3CollateralFactory = await ethers.getContractFactory('CTokenV3Collateral', {
-    libraries: { OracleLib: oracleLib.address },
-  })
+  const CTokenV3CollateralFactory: ContractFactory = await ethers.getContractFactory(
+    'CTokenV3Collateral',
+    {
+      libraries: { OracleLib: oracleLib.address },
+    }
+  )
+
+  return CTokenV3CollateralFactory
+}
+
+async function deployCollateral() {
+  const CTokenV3CollateralFactory = await makeCollateralFactory()
   const MockV3AggregatorFactory: ContractFactory = await ethers.getContractFactory(
     'MockV3Aggregator'
   )
@@ -71,11 +80,7 @@ describe('CTokenV3Collateral', () => {
   let CTokenV3CollateralFactory: ContractFactory
 
   beforeEach(async () => {
-    const OracleLibFactory: ContractFactory = await ethers.getContractFactory('OracleLib')
-    const oracleLib: OracleLib = <OracleLib>await OracleLibFactory.deploy()
-    CTokenV3CollateralFactory = await ethers.getContractFactory('CTokenV3Collateral', {
-      libraries: { OracleLib: oracleLib.address },
-    })
+    CTokenV3CollateralFactory = await makeCollateralFactory()
   })
 
   describe('Constructor validation', () => {
@@ -273,7 +278,6 @@ describe('Status', () => {
 
     // Check initial state
     expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
-
     expect(await collateral.whenDefault()).to.equal(MAX_UINT256)
 
     // Depeg USDC:USD - Reducing price by 20% from 1 to 0.8
@@ -298,80 +302,31 @@ describe('Status', () => {
     await advanceTime(Number(delayUntilDefault))
     expect(await collateral.status()).to.equal(CollateralStatus.DISABLED)
 
-    // Nothing changes if attempt to refresh after default for ATokens/CTokens
-    // AToken
+    // Nothing changes if attempt to refresh after default for CTokenV3
     let prevWhenDefault: bigint = (await collateral.whenDefault()).toBigInt()
-    await expect(collateral.refresh()).to.not.emit(collateral, 'DefaultStatusChanged')
-    expect(await collateral.status()).to.equal(CollateralStatus.DISABLED)
-    expect(await collateral.whenDefault()).to.equal(prevWhenDefault)
-
-    // CToken
-    prevWhenDefault = (await collateral.whenDefault()).toBigInt()
     await expect(collateral.refresh()).to.not.emit(collateral, 'DefaultStatusChanged')
     expect(await collateral.status()).to.equal(CollateralStatus.DISABLED)
     expect(await collateral.whenDefault()).to.equal(prevWhenDefault)
   })
 
-  // it('Updates status in case of hard default', async () => {
-  //   // Check initial state
-  //   expect(await tokenCollateral.status()).to.equal(CollateralStatus.SOUND)
-  //   expect(await usdcCollateral.status()).to.equal(CollateralStatus.SOUND)
-  //   expect(await aTokenCollateral.status()).to.equal(CollateralStatus.SOUND)
-  //   expect(await cTokenCollateral.status()).to.equal(CollateralStatus.SOUND)
+  it('Updates status in case of hard default', async () => {
+    // It is not possible for CTokenV3Colllateral to hard default because {ref/tok} is
+    // always 1 since USDC (ref) is always 1:1 with cUSDCV3 (tok).
+  })
 
-  //   expect(await tokenCollateral.whenDefault()).to.equal(MAX_UINT256)
-  //   expect(await usdcCollateral.whenDefault()).to.equal(MAX_UINT256)
-  //   expect(await aTokenCollateral.whenDefault()).to.equal(MAX_UINT256)
-  //   expect(await cTokenCollateral.whenDefault()).to.equal(MAX_UINT256)
+  it('Reverts if price is stale', async () => {
+    const { collateral } = await loadFixture(deployCollateral)
+    await advanceTime(ORACLE_TIMEOUT.toString())
+    // Check new prices
+    await expect(collateral.strictPrice()).to.be.revertedWithCustomError(collateral, 'StalePrice')
+  })
 
-  //   // Decrease rate for AToken and CToken, will disable collateral immediately
-  //   await aToken.setExchangeRate(fp('0.99'))
-  //   await cToken.setExchangeRate(fp('0.95'))
-
-  //   // Force updates - Should update whenDefault and status for Atokens/CTokens
-  //   await expect(tokenCollateral.refresh()).to.not.emit(tokenCollateral, 'DefaultStatusChanged')
-  //   expect(await tokenCollateral.status()).to.equal(CollateralStatus.SOUND)
-  //   expect(await tokenCollateral.whenDefault()).to.equal(MAX_UINT256)
-
-  //   await expect(usdcCollateral.refresh()).to.not.emit(usdcCollateral, 'DefaultStatusChanged')
-  //   expect(await usdcCollateral.status()).to.equal(CollateralStatus.SOUND)
-  //   expect(await usdcCollateral.whenDefault()).to.equal(MAX_UINT256)
-
-  //   const hardDefaultCollaterals = [aTokenCollateral, cTokenCollateral]
-  //   for (const coll of hardDefaultCollaterals) {
-  //     // Set next block timestamp - for deterministic result
-  //     await setNextBlockTimestamp((await getLatestBlockTimestamp()) + 1)
-
-  //     const expectedDefaultTimestamp: BigNumber = bn(await getLatestBlockTimestamp()).add(1)
-  //     await expect(coll.refresh())
-  //       .to.emit(coll, 'DefaultStatusChanged')
-  //       .withArgs(CollateralStatus.SOUND, CollateralStatus.DISABLED)
-  //     expect(await coll.status()).to.equal(CollateralStatus.DISABLED)
-  //     expect(await coll.whenDefault()).to.equal(expectedDefaultTimestamp)
-  //   }
-  // })
-
-  // it('Reverts if price is stale', async () => {
-  //   await advanceTime(ORACLE_TIMEOUT.toString())
-
-  //   // Check new prices
-  //   await expect(usdcCollateral.strictPrice()).to.be.revertedWith('StalePrice()')
-  //   await expect(tokenCollateral.strictPrice()).to.be.revertedWith('StalePrice()')
-  //   await expect(cTokenCollateral.strictPrice()).to.be.revertedWith('StalePrice()')
-  //   await expect(aTokenCollateral.strictPrice()).to.be.revertedWith('StalePrice()')
-  // })
-
-  // it('Enters IFFY state when price becomes stale', async () => {
-  //   await advanceTime(ORACLE_TIMEOUT.toString())
-  //   await usdcCollateral.refresh()
-  //   await tokenCollateral.refresh()
-  //   await cTokenCollateral.refresh()
-  //   await aTokenCollateral.refresh()
-  //   expect(await usdcCollateral.status()).to.equal(CollateralStatus.IFFY)
-  //   expect(await tokenCollateral.status()).to.equal(CollateralStatus.IFFY)
-  //   expect(await cTokenCollateral.status()).to.equal(CollateralStatus.IFFY)
-  //   expect(await aTokenCollateral.status()).to.equal(CollateralStatus.IFFY)
-  // })
+  it('Enters IFFY state when price becomes stale', async () => {
+    const { collateral } = await loadFixture(deployCollateral)
+    await advanceTime(ORACLE_TIMEOUT.toString())
+    await collateral.refresh()
+    expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
+  })
 
   // it('Reverts if Chainlink feed reverts or runs out of gas, maintains status - Fiat', async () => {
   //   const invalidChainlinkFeed: InvalidMockV3Aggregator = <InvalidMockV3Aggregator>(
