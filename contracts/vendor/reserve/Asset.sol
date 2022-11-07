@@ -3,7 +3,7 @@ pragma solidity ^0.8.9;
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import "../../ICollateral.sol";
+import "./IAsset.sol";
 import "./OracleLib.sol";
 
 // Vendored from: https://github.com/reserve-protocol/protocol/blob/master/contracts/plugins/assets/Asset.sol
