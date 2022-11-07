@@ -29,12 +29,15 @@ import { ZERO_ADDRESS, RTOKEN_MAX_TRADE_VOL, ORACLE_TIMEOUT } from './helpers'
 // ```
 
 const COMP_ADDRESS = '0xc00e94Cb662C3520282E6f5717214004A7f26888'
+const RSR_ADDRESS = '0x320623b8e4ff03373931769a31fc52a4e78b5d70'
+const RSR_PRICE_FEED = '0x759bBC1be8F90eE6457C44abc7d443842a976d02'
 
 describe('Integration tests', () => {
   let compAsset: Asset
+  let rsrAsset: Asset
 
   beforeEach(async () => {
-    compAsset = <Asset>await (
+    compAsset = await (
       await ethers.getContractFactory('Asset')
     ).deploy(
       1n * 10n ** 18n,
@@ -44,12 +47,22 @@ describe('Integration tests', () => {
       RTOKEN_MAX_TRADE_VOL,
       ORACLE_TIMEOUT
     )
+
+    rsrAsset = await (
+      await ethers.getContractFactory('Asset')
+    ).deploy(
+      7n * 10n ** 15n,
+      RSR_PRICE_FEED,
+      RSR_ADDRESS,
+      ZERO_ADDRESS,
+      RTOKEN_MAX_TRADE_VOL,
+      ORACLE_TIMEOUT
+    )
   })
 
   it('Should setup assets correctly', async () => {
     // COMP Token
     expect(await compAsset.isCollateral()).to.equal(false)
-    // expect(await compAsset.erc20()).to.equal(compToken.address)
     expect(await compAsset.erc20()).to.equal(COMP_ADDRESS)
     // expect(await compToken.decimals()).to.equal(18)
     console.log('StrictPrice: %s', await compAsset.strictPrice())
@@ -59,14 +72,13 @@ describe('Integration tests', () => {
     expect(await compAsset.maxTradeVolume()).to.equal(RTOKEN_MAX_TRADE_VOL)
 
     // RSR Token
-    // expect(await rsrAsset.isCollateral()).to.equal(false)
-    // expect(await rsrAsset.erc20()).to.equal(rsr.address)
-    // expect(await rsrAsset.erc20()).to.equal(networkConfig[chainId].tokens.RSR)
+    expect(await rsrAsset.isCollateral()).to.equal(false)
+    expect(await rsrAsset.erc20()).to.equal(ethers.utils.getAddress(RSR_ADDRESS))
     // expect(rsr.address).to.equal(networkConfig[chainId].tokens.RSR)
     // expect(await rsr.decimals()).to.equal(18)
-    // expect(await rsrAsset.strictPrice()).to.be.closeTo(fp('0.00699'), fp('0.00005')) // Close to $0.00699
-    // expect(await rsrAsset.getClaimCalldata()).to.eql([ZERO_ADDRESS, '0x'])
-    // expect(await rsrAsset.rewardERC20()).to.equal(ZERO_ADDRESS)
-    // expect(await rsrAsset.maxTradeVolume()).to.equal(config.rTokenMaxTradeVolume)
+    expect(await rsrAsset.strictPrice()).to.be.closeTo(645n * 10n ** 13n, 5n * 10n ** 12n) // Close to $0.00645
+    expect(await rsrAsset.getClaimCalldata()).to.eql([ZERO_ADDRESS, '0x'])
+    expect(await rsrAsset.rewardERC20()).to.equal(ZERO_ADDRESS)
+    expect(await rsrAsset.maxTradeVolume()).to.equal(RTOKEN_MAX_TRADE_VOL)
   })
 })
