@@ -1,16 +1,21 @@
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
-import { Asset, ERC20Mock } from '../typechain-types'
-import { ERC20 } from '../typechain-types/@openzeppelin/contracts/token/ERC20/ERC20'
+import { ContractFactory } from 'ethers'
+import { Asset, CTokenV3Collateral, ERC20Mock, OracleLib } from '../typechain-types'
 import {
   CUSDC_V3,
   ZERO_ADDRESS,
   RTOKEN_MAX_TRADE_VOL,
   ORACLE_TIMEOUT,
   COMP_V3,
-  deployCollateralWithFeed,
   REWARDS_ADDR,
+  CollateralStatus,
+  deployCollateralWithFeed,
+  deployCollateral,
+  advanceTime,
+  DEFAULT_THRESHOLD,
+  DELAY_UNTIL_DEFAULT,
 } from './helpers'
 
 const COMP_ADDRESS = '0xc00e94Cb662C3520282E6f5717214004A7f26888'
@@ -93,5 +98,79 @@ describe('Integration tests', () => {
     expect(await collateral.rewardERC20()).to.equal(COMP_V3)
     expect(await collateral.rewardsAddr()).to.equal(REWARDS_ADDR)
     expect(await collateral.maxTradeVolume()).to.equal(RTOKEN_MAX_TRADE_VOL)
+  })
+
+  const NO_PRICE_DATA_FEED = '0x51597f405303C4377E36123cBc172b13269EA163'
+
+  it('Should handle invalid/stale Price', async () => {
+    const { collateral, chainlinkFeed } = await loadFixture(deployCollateral)
+
+    // Reverts with stale price
+    await advanceTime(ORACLE_TIMEOUT.toString())
+    await expect(collateral.strictPrice()).to.be.revertedWithCustomError(collateral, 'StalePrice')
+
+    // Refresh should mark status IFFY
+    await collateral.refresh()
+    expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
+
+    // CTokens Collateral with no price
+    const OracleLibFactory: ContractFactory = await ethers.getContractFactory('OracleLib')
+    const oracleLib: OracleLib = <OracleLib>await OracleLibFactory.deploy()
+    const nonpriceCtokenCollateral: CTokenV3Collateral = <CTokenV3Collateral>await (
+      await ethers.getContractFactory('CTokenV3Collateral', {
+        libraries: { OracleLib: oracleLib.address },
+      })
+    ).deploy(
+      FIX_ONE,
+      NO_PRICE_DATA_FEED,
+      CUSDC_V3,
+      compToken.address,
+      RTOKEN_MAX_TRADE_VOL,
+      ORACLE_TIMEOUT,
+      ethers.utils.formatBytes32String('USD'),
+      DEFAULT_THRESHOLD,
+      DELAY_UNTIL_DEFAULT,
+      REWARDS_ADDR,
+      6
+    )
+
+    // Collateral with no price info should revert
+    await expect(nonpriceCtokenCollateral.strictPrice()).to.be.reverted
+
+    // Refresh should also revert - status is not modified
+    await expect(nonpriceCtokenCollateral.refresh()).to.be.reverted
+    expect(await nonpriceCtokenCollateral.status()).to.equal(CollateralStatus.SOUND)
+
+    // Reverts with a feed with zero price
+    const invalidpriceCtokenCollateral: CTokenV3Collateral = <CTokenV3Collateral>await (
+      await ethers.getContractFactory('CTokenV3Collateral', {
+        libraries: { OracleLib: oracleLib.address },
+      })
+    ).deploy(
+      FIX_ONE,
+      chainlinkFeed.address,
+      CUSDC_V3,
+      compToken.address,
+      RTOKEN_MAX_TRADE_VOL,
+      ORACLE_TIMEOUT,
+      ethers.utils.formatBytes32String('USD'),
+      DEFAULT_THRESHOLD,
+      DELAY_UNTIL_DEFAULT,
+      REWARDS_ADDR,
+      6
+    )
+
+    const updateAnswerTx = await chainlinkFeed.updateAnswer(0n)
+    await updateAnswerTx.wait()
+
+    // Reverts with zero price
+    await expect(invalidpriceCtokenCollateral.strictPrice()).to.be.revertedWithCustomError(
+      invalidpriceCtokenCollateral,
+      'PriceOutsideRange'
+    )
+
+    // Refresh should mark status IFFY
+    await invalidpriceCtokenCollateral.refresh()
+    expect(await invalidpriceCtokenCollateral.status()).to.equal(CollateralStatus.IFFY)
   })
 })
