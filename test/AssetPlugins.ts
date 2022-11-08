@@ -1,8 +1,36 @@
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
 import { expect } from 'chai'
-import { ethers } from 'hardhat'
-import { ContractFactory } from 'ethers'
-import { Asset, CTokenV3Collateral, ERC20Mock, OracleLib } from '../typechain-types'
+import hre, { ethers, network } from 'hardhat'
+import { ContractFactory, Event } from 'ethers'
+import {
+  Asset,
+  CTokenV3Collateral,
+  ERC20Mock,
+  OracleLib,
+  GnosisMock,
+  EasyAuction,
+  MainP1,
+  RewardableLibP1,
+  AssetRegistryP1,
+  BackingManagerP1,
+  BasketHandlerP1,
+  DistributorP1,
+  RevenueTraderP1,
+  FurnaceP1,
+  GnosisTrade,
+  BrokerP1,
+  RTokenP1,
+  StRSRP1Votes,
+  DeployerP1,
+  RecollateralizationLibP1,
+  PermitLib,
+  TestIMain,
+  IAssetRegistry,
+  TestIBackingManager,
+  IBasketHandler,
+  TestIDistributor,
+  TestIRToken,
+} from '../typechain-types'
 import {
   CUSDC_V3,
   ZERO_ADDRESS,
@@ -22,6 +50,7 @@ const COMP_ADDRESS = '0xc00e94Cb662C3520282E6f5717214004A7f26888'
 const RSR_ADDRESS = '0x320623b8e4ff03373931769a31fc52a4e78b5d70'
 const RSR_PRICE_FEED = '0x759bBC1be8F90eE6457C44abc7d443842a976d02'
 const FIX_ONE = 1n * 10n ** 18n
+const GNOSIS_EASY_AUCTION = '0x0b7fFc1f4AD541A4Ed16b40D8c37f0929158D101'
 
 describe('Integration tests', () => {
   let compAsset: Asset
@@ -30,6 +59,7 @@ describe('Integration tests', () => {
   let compToken: ERC20Mock
 
   beforeEach(async () => {
+    console.log(await hre.artifacts.getArtifactPaths())
     compAsset = await (
       await ethers.getContractFactory('Asset')
     ).deploy(
@@ -102,7 +132,7 @@ describe('Integration tests', () => {
 
   const NO_PRICE_DATA_FEED = '0x51597f405303C4377E36123cBc172b13269EA163'
 
-  it('Should handle invalid/stale Price', async () => {
+  it('Should handle invalid/stale Price - Collateral', async () => {
     const { collateral, chainlinkFeed } = await loadFixture(deployCollateral)
 
     // Reverts with stale price
@@ -172,5 +202,203 @@ describe('Integration tests', () => {
     // Refresh should mark status IFFY
     await invalidpriceCtokenCollateral.refresh()
     expect(await invalidpriceCtokenCollateral.status()).to.equal(CollateralStatus.IFFY)
+  })
+
+  interface GnosisFixture {
+    gnosis: GnosisMock
+    easyAuction: EasyAuction
+  }
+
+  async function gnosisFixture(): Promise<GnosisFixture> {
+    const GnosisFactory: ContractFactory = await ethers.getContractFactory('GnosisMock')
+    const chainId = await network.provider.send('eth_chainId')
+
+    return {
+      gnosis: <GnosisMock>await GnosisFactory.deploy(),
+      easyAuction: <EasyAuction>await ethers.getContractAt('EasyAuction', GNOSIS_EASY_AUCTION),
+    }
+  }
+  interface IComponents {
+    assetRegistry: string
+    backingManager: string
+    basketHandler: string
+    broker: string
+    distributor: string
+    furnace: string
+    rsrTrader: string
+    rTokenTrader: string
+    rToken: string
+    stRSR: string
+  }
+
+  interface IImplementations {
+    main: string
+    trade: string
+    components: IComponents
+  }
+
+  it('Should register ERC20s and Assets/Collateral correctly', async () => {
+    // Deploy implementations
+    const MainImplFactory: ContractFactory = await ethers.getContractFactory('MainP1')
+    const mainImpl: MainP1 = <MainP1>await MainImplFactory.deploy()
+
+    // Deploy RewardableLib external library
+    const RewardableLibFactory: ContractFactory = await ethers.getContractFactory('RewardableLibP1')
+    const rewardableLib: RewardableLibP1 = <RewardableLibP1>await RewardableLibFactory.deploy()
+
+    const TradingLibFactory: ContractFactory = await ethers.getContractFactory(
+      'RecollateralizationLibP1'
+    )
+    const tradingLib: RecollateralizationLibP1 = <RecollateralizationLibP1>(
+      await TradingLibFactory.deploy()
+    )
+
+    const PermitLibFactory: ContractFactory = await ethers.getContractFactory('PermitLib')
+    const permitLib: PermitLib = <PermitLib>await PermitLibFactory.deploy()
+
+    const AssetRegImplFactory: ContractFactory = await ethers.getContractFactory('AssetRegistryP1')
+    const assetRegImpl: AssetRegistryP1 = <AssetRegistryP1>await AssetRegImplFactory.deploy()
+
+    const BackingMgrImplFactory: ContractFactory = await ethers.getContractFactory(
+      'BackingManagerP1',
+      {
+        libraries: {
+          RewardableLibP1: rewardableLib.address,
+          RecollateralizationLibP1: tradingLib.address,
+        },
+      }
+    )
+    const backingMgrImpl: BackingManagerP1 = <BackingManagerP1>await BackingMgrImplFactory.deploy()
+
+    const BskHandlerImplFactory: ContractFactory = await ethers.getContractFactory(
+      'BasketHandlerP1'
+    )
+    const bskHndlrImpl: BasketHandlerP1 = <BasketHandlerP1>await BskHandlerImplFactory.deploy()
+
+    const DistribImplFactory: ContractFactory = await ethers.getContractFactory('DistributorP1')
+    const distribImpl: DistributorP1 = <DistributorP1>await DistribImplFactory.deploy()
+
+    const RevTraderImplFactory: ContractFactory = await ethers.getContractFactory(
+      'RevenueTraderP1',
+      { libraries: { RewardableLibP1: rewardableLib.address } }
+    )
+    const revTraderImpl: RevenueTraderP1 = <RevenueTraderP1>await RevTraderImplFactory.deploy()
+
+    const FurnaceImplFactory: ContractFactory = await ethers.getContractFactory('FurnaceP1')
+    const furnaceImpl: FurnaceP1 = <FurnaceP1>await FurnaceImplFactory.deploy()
+
+    const TradeImplFactory: ContractFactory = await ethers.getContractFactory('GnosisTrade')
+    const tradeImpl: GnosisTrade = <GnosisTrade>await TradeImplFactory.deploy()
+
+    const BrokerImplFactory: ContractFactory = await ethers.getContractFactory('BrokerP1')
+    const brokerImpl: BrokerP1 = <BrokerP1>await BrokerImplFactory.deploy()
+
+    const RTokenImplFactory: ContractFactory = await ethers.getContractFactory('RTokenP1', {
+      libraries: { RewardableLibP1: rewardableLib.address, PermitLib: permitLib.address },
+    })
+    const rTokenImpl: RTokenP1 = <RTokenP1>await RTokenImplFactory.deploy()
+
+    const StRSRImplFactory: ContractFactory = await ethers.getContractFactory('StRSRP1Votes', {
+      libraries: { PermitLib: permitLib.address },
+    })
+    const stRSRImpl: StRSRP1Votes = <StRSRP1Votes>await StRSRImplFactory.deploy()
+
+    // Setup Implementation addresses
+    const implementations: IImplementations = {
+      main: mainImpl.address,
+      trade: tradeImpl.address,
+      components: {
+        assetRegistry: assetRegImpl.address,
+        backingManager: backingMgrImpl.address,
+        basketHandler: bskHndlrImpl.address,
+        broker: brokerImpl.address,
+        distributor: distribImpl.address,
+        furnace: furnaceImpl.address,
+        rsrTrader: revTraderImpl.address,
+        rTokenTrader: revTraderImpl.address,
+        rToken: rTokenImpl.address,
+        stRSR: stRSRImpl.address,
+      },
+    }
+    const { gnosis } = await gnosisFixture()
+
+    const DeployerFactory: ContractFactory = await ethers.getContractFactory('DeployerP1')
+    const deployer = <DeployerP1>(
+      await DeployerFactory.deploy(rsr.address, gnosis.address, rsrAsset.address, implementations)
+    )
+
+    const config = {
+      dist: {
+        rTokenDist: 40n, // 2/5 RToken
+        rsrDist: 60n, // 3/5 RSR
+      },
+      minTradeVolume: 1n * 10n ** 22n, // $10k
+      rTokenMaxTradeVolume: 1n * 10n ** 24n, // $1M
+      shortFreeze: 259200n, // 3 days
+      longFreeze: 2592000n, // 30 days
+      rewardPeriod: 604800n, // 1 week
+      rewardRatio: 2284n * 10n ** 13n, // approx. half life of 30 pay periods
+      unstakingDelay: 1209600n, // 2 weeks
+      tradingDelay: 0n, // (the delay _after_ default has been confirmed)
+      auctionLength: 900n, // 15 minutes
+      backingBuffer: 1n * 10n ** 14n, // 0.01%
+      maxTradeSlippage: 1n * 10n * 16n, // 1%
+      issuanceRate: 25n * 10n ** 13n, // 0.025% per block or ~0.1% per minute
+      scalingRedemptionRate: 5n * 10n ** 16n, // 5%
+      redemptionRateFloor: 1000000n * 10n * 18n, // 1M RToken
+    }
+    // Deploy actual contracts
+    const [owner] = await ethers.getSigners()
+    const receipt = await (
+      await deployer.deploy('RTKN RToken', 'RTKN', 'mandate', owner.address, config)
+    ).wait()
+    const event = receipt.events.find((e: Event) => e.event === 'RTokenCreated')
+    const mainAddr = event.args.main
+    const main: TestIMain = <TestIMain>await ethers.getContractAt('TestIMain', mainAddr)
+    const rToken: TestIRToken = <TestIRToken>(
+      await ethers.getContractAt('TestIRToken', await main.rToken())
+    )
+
+    // Get Core
+    const assetRegistry: IAssetRegistry = <IAssetRegistry>(
+      await ethers.getContractAt('IAssetRegistry', await main.assetRegistry())
+    )
+    const backingManager: TestIBackingManager = <TestIBackingManager>(
+      await ethers.getContractAt('TestIBackingManager', await main.backingManager())
+    )
+    const basketHandler: IBasketHandler = <IBasketHandler>(
+      await ethers.getContractAt('IBasketHandler', await main.basketHandler())
+    )
+    const distributor: TestIDistributor = <TestIDistributor>(
+      await ethers.getContractAt('TestIDistributor', await main.distributor())
+    )
+    // Check assets/collateral
+    const ERC20s = await assetRegistry.erc20s()
+    console.log('ERC20s', ERC20s)
+    expect(ERC20s[0]).to.equal(rToken.address)
+    expect(ERC20s[1]).to.equal(ethers.utils.getAddress(rsr.address))
+    // expect(ERC20s[3]).to.equal(compToken.address)
+    const { collateral, chainlinkFeed } = await loadFixture(deployCollateral)
+    const basket = [rToken, rsr, collateral]
+
+    const initialTokens: string[] = await Promise.all(
+      basket.map(async (c): Promise<string> => {
+        return await c.erc20()
+      })
+    )
+    expect(ERC20s.slice(4)).to.eql(initialTokens)
+    expect(ERC20s.length).to.eql((await facade.basketTokens(rToken.address)).length + 4)
+    // // Assets
+    // expect(await assetRegistry.toAsset(ERC20s[0])).to.equal(rTokenAsset.address)
+    // expect(await assetRegistry.toAsset(ERC20s[1])).to.equal(rsrAsset.address)
+    // expect(await assetRegistry.toAsset(ERC20s[2])).to.equal(aaveAsset.address)
+    // expect(await assetRegistry.toAsset(ERC20s[3])).to.equal(compAsset.address)
+    // expect(await assetRegistry.toAsset(ERC20s[4])).to.equal(daiCollateral.address)
+    // expect(await assetRegistry.toAsset(ERC20s[5])).to.equal(aDaiCollateral.address)
+    // expect(await assetRegistry.toAsset(ERC20s[6])).to.equal(cDaiCollateral.address)
+    // // Collaterals
+    // expect(await assetRegistry.toColl(ERC20s[4])).to.equal(daiCollateral.address)
+    // expect(await assetRegistry.toColl(ERC20s[5])).to.equal(aDaiCollateral.address)
+    // expect(await assetRegistry.toColl(ERC20s[6])).to.equal(cDaiCollateral.address)
   })
 })
