@@ -25,6 +25,7 @@
     "chai": "^4.3.6",
     "ethers": "^5.7.1",
     "hardhat": "^2.12.0",
+    "hardhat-dependency-compiler": "^1.1.3",
     "hardhat-gas-reporter": "^1.0.9",
     "reserve": "git@github.com:gjaldon/protocol.git",
     "solidity-coverage": "^0.8.2",
