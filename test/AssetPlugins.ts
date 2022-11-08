@@ -30,6 +30,8 @@ import {
   IBasketHandler,
   TestIDistributor,
   TestIRToken,
+  RTokenAsset,
+  FacadeRead,
 } from '../typechain-types'
 import {
   CUSDC_V3,
@@ -59,7 +61,6 @@ describe('Integration tests', () => {
   let compToken: ERC20Mock
 
   beforeEach(async () => {
-    console.log(await hre.artifacts.getArtifactPaths())
     compAsset = await (
       await ethers.getContractFactory('Asset')
     ).deploy(
@@ -363,6 +364,11 @@ describe('Integration tests', () => {
     const assetRegistry: IAssetRegistry = <IAssetRegistry>(
       await ethers.getContractAt('IAssetRegistry', await main.assetRegistry())
     )
+
+    // Deploy FacadeRead
+    const FacadeReadFactory: ContractFactory = await ethers.getContractFactory('FacadeRead')
+    const facade = <FacadeRead>await FacadeReadFactory.deploy()
+
     const backingManager: TestIBackingManager = <TestIBackingManager>(
       await ethers.getContractAt('TestIBackingManager', await main.backingManager())
     )
@@ -372,33 +378,33 @@ describe('Integration tests', () => {
     const distributor: TestIDistributor = <TestIDistributor>(
       await ethers.getContractAt('TestIDistributor', await main.distributor())
     )
+
+    const rTokenAsset: RTokenAsset = <RTokenAsset>(
+      await ethers.getContractAt('RTokenAsset', await assetRegistry.toAsset(rToken.address))
+    )
+
+    const { collateral } = await loadFixture(deployCollateral)
+
+    await assetRegistry.connect(owner).register(compAsset.address)
+    await assetRegistry.connect(owner).register(collateral.address)
+
     // Check assets/collateral
     const ERC20s = await assetRegistry.erc20s()
-    console.log('ERC20s', ERC20s)
-    expect(ERC20s[0]).to.equal(rToken.address)
-    expect(ERC20s[1]).to.equal(ethers.utils.getAddress(rsr.address))
-    // expect(ERC20s[3]).to.equal(compToken.address)
-    const { collateral, chainlinkFeed } = await loadFixture(deployCollateral)
-    const basket = [rToken, rsr, collateral]
 
-    const initialTokens: string[] = await Promise.all(
-      basket.map(async (c): Promise<string> => {
-        return await c.erc20()
-      })
-    )
-    expect(ERC20s.slice(4)).to.eql(initialTokens)
+    expect(ERC20s[0]).to.equal(await rTokenAsset.erc20())
+    expect(ERC20s[1]).to.equal(await rsrAsset.erc20())
+    expect(ERC20s[2]).to.equal(await compAsset.erc20())
+    expect(ERC20s[3]).to.equal(await collateral.erc20())
+
+    // No ERC20s backing the RToken yet
     expect(ERC20s.length).to.eql((await facade.basketTokens(rToken.address)).length + 4)
-    // // Assets
-    // expect(await assetRegistry.toAsset(ERC20s[0])).to.equal(rTokenAsset.address)
-    // expect(await assetRegistry.toAsset(ERC20s[1])).to.equal(rsrAsset.address)
-    // expect(await assetRegistry.toAsset(ERC20s[2])).to.equal(aaveAsset.address)
-    // expect(await assetRegistry.toAsset(ERC20s[3])).to.equal(compAsset.address)
-    // expect(await assetRegistry.toAsset(ERC20s[4])).to.equal(daiCollateral.address)
-    // expect(await assetRegistry.toAsset(ERC20s[5])).to.equal(aDaiCollateral.address)
-    // expect(await assetRegistry.toAsset(ERC20s[6])).to.equal(cDaiCollateral.address)
-    // // Collaterals
-    // expect(await assetRegistry.toColl(ERC20s[4])).to.equal(daiCollateral.address)
-    // expect(await assetRegistry.toColl(ERC20s[5])).to.equal(aDaiCollateral.address)
-    // expect(await assetRegistry.toColl(ERC20s[6])).to.equal(cDaiCollateral.address)
+
+    // Assets
+    expect(await assetRegistry.toAsset(ERC20s[0])).to.equal(rTokenAsset.address)
+    expect(await assetRegistry.toAsset(ERC20s[1])).to.equal(rsrAsset.address)
+    expect(await assetRegistry.toAsset(ERC20s[2])).to.equal(compAsset.address)
+    expect(await assetRegistry.toAsset(ERC20s[3])).to.equal(collateral.address)
+    // Collaterals
+    expect(await assetRegistry.toColl(ERC20s[3])).to.equal(collateral.address)
   })
 })

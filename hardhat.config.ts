@@ -56,6 +56,7 @@ const config: HardhatUserConfig = {
       'reserve/contracts/p1/StRSR.sol',
       'reserve/contracts/p1/StRSRVotes.sol',
       'reserve/contracts/libraries/Permit.sol',
+      'reserve/contracts/facade/FacadeRead.sol',
     ],
   },
 }
