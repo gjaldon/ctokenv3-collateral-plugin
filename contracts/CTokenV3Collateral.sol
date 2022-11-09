@@ -163,8 +163,6 @@ contract CTokenV3Collateral is ICollateral {
     function getClaimCalldata()
         external
         view
-       
-    
         returns (address _to, bytes memory _cd)
     {
         _to = rewardsAddr;
