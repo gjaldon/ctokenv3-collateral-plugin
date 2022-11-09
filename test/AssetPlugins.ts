@@ -100,8 +100,8 @@ describe('Integration tests', () => {
 
     // RSR Token
     expect(await rsrAsset.isCollateral()).to.equal(false)
-    expect(await rsrAsset.erc20()).to.equal(ethers.utils.getAddress(RSR_ADDRESS))
-    expect(rsr.address).to.equal(RSR_ADDRESS)
+    expect(await rsrAsset.erc20()).to.equal(ethers.utils.getAddress(RSR))
+    expect(rsr.address).to.equal(RSR)
     expect(await rsr.decimals()).to.equal(18)
     expect(await rsrAsset.strictPrice()).to.be.closeTo(645n * 10n ** 13n, 5n * 10n ** 12n) // Close to $0.00645
     expect(await rsrAsset.getClaimCalldata()).to.eql([ZERO_ADDRESS, '0x'])
@@ -161,7 +161,7 @@ describe('Integration tests', () => {
       ethers.utils.formatBytes32String('USD'),
       DEFAULT_THRESHOLD,
       DELAY_UNTIL_DEFAULT,
-      REWARDS_ADDR,
+      REWARDS,
       6
     )
 
@@ -187,7 +187,7 @@ describe('Integration tests', () => {
       ethers.utils.formatBytes32String('USD'),
       DEFAULT_THRESHOLD,
       DELAY_UNTIL_DEFAULT,
-      REWARDS_ADDR,
+      REWARDS,
       6
     )
 

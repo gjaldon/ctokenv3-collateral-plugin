@@ -1,17 +1,17 @@
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
 import { ContractFactory } from 'ethers'
-import { InvalidMockV3Aggregator } from '../typechain-types'
+import { CTokenV3Collateral, InvalidMockV3Aggregator, MockV3Aggregator } from '../typechain-types'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
 import {
   USDC_USD_PRICE_FEED,
   CUSDC_V3,
-  COMP_V3,
+  COMP,
   RTOKEN_MAX_TRADE_VOL,
   ORACLE_TIMEOUT,
   DEFAULT_THRESHOLD,
   DELAY_UNTIL_DEFAULT,
-  REWARDS_ADDR,
+  REWARDS,
   USDC_DECIMALS,
   ZERO_ADDRESS,
   deployCollateral,
@@ -24,26 +24,26 @@ import {
 } from './helpers'
 
 describe('CTokenV3Collateral', () => {
-  let CTokenV3CollateralFactory: ContractFactory
-
-  beforeEach(async () => {
-    CTokenV3CollateralFactory = await makeCollateralFactory()
-  })
-
   describe('Constructor validation', () => {
+    let CTokenV3CollateralFactory: ContractFactory
+
+    beforeEach(async () => {
+      CTokenV3CollateralFactory = await makeCollateralFactory()
+    })
+
     it('Should validate targetName correctly', async () => {
       await expect(
         CTokenV3CollateralFactory.deploy(
           1,
           USDC_USD_PRICE_FEED,
           CUSDC_V3,
-          COMP_V3,
+          COMP,
           RTOKEN_MAX_TRADE_VOL,
           ORACLE_TIMEOUT,
           ethers.constants.HashZero,
           DEFAULT_THRESHOLD,
           DELAY_UNTIL_DEFAULT,
-          REWARDS_ADDR,
+          REWARDS,
           USDC_DECIMALS
         )
       ).to.be.revertedWith('targetName missing')
@@ -55,13 +55,13 @@ describe('CTokenV3Collateral', () => {
           1,
           USDC_USD_PRICE_FEED,
           CUSDC_V3,
-          COMP_V3,
+          COMP,
           RTOKEN_MAX_TRADE_VOL,
           ORACLE_TIMEOUT,
           ethers.utils.formatBytes32String('USD'),
           0,
           DELAY_UNTIL_DEFAULT,
-          REWARDS_ADDR,
+          REWARDS,
           USDC_DECIMALS
         )
       ).to.be.revertedWith('defaultThreshold zero')
@@ -73,13 +73,13 @@ describe('CTokenV3Collateral', () => {
           1,
           USDC_USD_PRICE_FEED,
           CUSDC_V3,
-          COMP_V3,
+          COMP,
           RTOKEN_MAX_TRADE_VOL,
           ORACLE_TIMEOUT,
           ethers.utils.formatBytes32String('USD'),
           DEFAULT_THRESHOLD,
           0,
-          REWARDS_ADDR,
+          REWARDS,
           USDC_DECIMALS
         )
       ).to.be.revertedWith('delayUntilDefault zero')
@@ -97,7 +97,7 @@ describe('CTokenV3Collateral', () => {
           ethers.utils.formatBytes32String('USD'),
           DEFAULT_THRESHOLD,
           DELAY_UNTIL_DEFAULT,
-          REWARDS_ADDR,
+          REWARDS,
           USDC_DECIMALS
         )
       ).to.be.revertedWith('rewardERC20 missing')
@@ -109,13 +109,13 @@ describe('CTokenV3Collateral', () => {
           1,
           USDC_USD_PRICE_FEED,
           CUSDC_V3,
-          COMP_V3,
+          COMP,
           RTOKEN_MAX_TRADE_VOL,
           ORACLE_TIMEOUT,
           ethers.utils.formatBytes32String('USD'),
           DEFAULT_THRESHOLD,
           DELAY_UNTIL_DEFAULT,
-          REWARDS_ADDR,
+          REWARDS,
           0
         )
       ).to.be.revertedWith('referenceERC20Decimals missing')
@@ -127,7 +127,7 @@ describe('CTokenV3Collateral', () => {
           1,
           USDC_USD_PRICE_FEED,
           CUSDC_V3,
-          COMP_V3,
+          COMP,
           RTOKEN_MAX_TRADE_VOL,
           ORACLE_TIMEOUT,
           ethers.utils.formatBytes32String('USD'),

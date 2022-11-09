@@ -7,10 +7,13 @@ import {
 import { ethers, network } from 'hardhat'
 import { ContractFactory } from 'ethers'
 
+// Addresses
+export const RSR = '0x320623b8e4ff03373931769a31fc52a4e78b5d70'
 export const USDC_USD_PRICE_FEED = '0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6'
 export const CUSDC_V3 = '0xc3d688B66703497DAA19211EEdff47f25384cdc3'
-export const COMP_V3 = '0xc00e94Cb662C3520282E6f5717214004A7f26888'
-export const REWARDS_ADDR = '0x1B0e765F6224C21223AeA2af16c1C46E38885a40'
+export const COMP = '0xc00e94Cb662C3520282E6f5717214004A7f26888'
+export const REWARDS = '0x1B0e765F6224C21223AeA2af16c1C46E38885a40'
+
 export const ORACLE_TIMEOUT = 281474976710655n / 2n // type(uint48).max / 2
 export const DEFAULT_THRESHOLD = 5n * 10n ** 16n // 0.05
 export const DELAY_UNTIL_DEFAULT = 86400n
@@ -19,6 +22,7 @@ export const USDC_DECIMALS = 6
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 export const MAX_UINT256 = 2n ** 256n - 1n
+export const FIX_ONE = 1n * 10n ** 18n
 
 export enum CollateralStatus {
   SOUND,
@@ -71,13 +75,13 @@ export const deployCollateralWithFeed = async (): Promise<Collateral> => {
       1,
       chainlinkFeed.address,
       CUSDC_V3,
-      COMP_V3,
+      COMP,
       RTOKEN_MAX_TRADE_VOL,
       ORACLE_TIMEOUT,
       ethers.utils.formatBytes32String('USD'),
       DEFAULT_THRESHOLD,
       DELAY_UNTIL_DEFAULT,
-      REWARDS_ADDR,
+      REWARDS,
       USDC_DECIMALS
     )
   )
@@ -99,13 +103,13 @@ export const deployCollateral = async (): Promise<CollateralWithMockFeed> => {
       1,
       chainlinkFeed.address,
       CUSDC_V3,
-      COMP_V3,
+      COMP,
       RTOKEN_MAX_TRADE_VOL,
       ORACLE_TIMEOUT,
       ethers.utils.formatBytes32String('USD'),
       DEFAULT_THRESHOLD,
       DELAY_UNTIL_DEFAULT,
-      REWARDS_ADDR,
+      REWARDS,
       USDC_DECIMALS
     )
   )
