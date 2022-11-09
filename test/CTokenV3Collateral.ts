@@ -204,9 +204,14 @@ describe('Prices #fast', () => {
 })
 
 describe('Status', () => {
-  it('Should maintain status in normal situations', async () => {
-    const { collateral } = await loadFixture(deployCollateral)
+  let collateral: CTokenV3Collateral
+  let chainlinkFeed: MockV3Aggregator
 
+  beforeEach(async () => {
+    ;({ collateral, chainlinkFeed } = await loadFixture(deployCollateral))
+  })
+
+  it('Should maintain status in normal situations', async () => {
     // Check initial state
     expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
     expect(await collateral.whenDefault()).to.equal(MAX_UINT256)
@@ -220,7 +225,6 @@ describe('Status', () => {
   })
 
   it('Updates status in case of soft default', async () => {
-    const { collateral, chainlinkFeed } = await loadFixture(deployCollateral)
     const delayUntilDefault = (await collateral.delayUntilDefault()).toBigInt()
 
     // Check initial state
@@ -262,21 +266,18 @@ describe('Status', () => {
   })
 
   it('Reverts if price is stale', async () => {
-    const { collateral } = await loadFixture(deployCollateral)
     await advanceTime(ORACLE_TIMEOUT.toString())
     // Check new prices
     await expect(collateral.strictPrice()).to.be.revertedWithCustomError(collateral, 'StalePrice')
   })
 
   it('Enters IFFY state when price becomes stale', async () => {
-    const { collateral } = await loadFixture(deployCollateral)
     await advanceTime(ORACLE_TIMEOUT.toString())
     await collateral.refresh()
     expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
   })
 
   it('Reverts if Chainlink feed reverts or runs out of gas, maintains status', async () => {
-    const { collateral } = await loadFixture(deployCollateral)
     const InvalidMockV3AggregatorFactory = await ethers.getContractFactory(
       'InvalidMockV3Aggregator'
     )
