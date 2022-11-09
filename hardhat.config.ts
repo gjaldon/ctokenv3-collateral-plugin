@@ -41,6 +41,7 @@ const config: HardhatUserConfig = {
       'reserve/contracts/plugins/mocks/GnosisMock.sol',
       'reserve/contracts/plugins/mocks/EasyAuction.sol',
       'reserve/contracts/plugins/mocks/ChainlinkMock.sol',
+      'reserve/contracts/plugins/mocks/InvalidChainlinkMock.sol',
       'reserve/contracts/p1/Main.sol',
       'reserve/contracts/p1/mixins/RewardableLib.sol',
       'reserve/contracts/p1/mixins/RecollateralizationLib.sol',
