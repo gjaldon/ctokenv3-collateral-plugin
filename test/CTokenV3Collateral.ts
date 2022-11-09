@@ -14,130 +14,127 @@ import {
   REWARDS,
   USDC_DECIMALS,
   ZERO_ADDRESS,
-  deployCollateral,
-  makeCollateralFactory,
   CollateralStatus,
   MAX_UINT256,
   getLatestBlockTimestamp,
   setNextBlockTimestamp,
   advanceTime,
 } from './helpers'
+import { deployCollateral, makeCollateralFactory } from './fixtures'
 
-describe('CTokenV3Collateral', () => {
-  describe('Constructor validation', () => {
-    let CTokenV3CollateralFactory: ContractFactory
+describe('Constructor validation', () => {
+  let CTokenV3CollateralFactory: ContractFactory
 
-    beforeEach(async () => {
-      CTokenV3CollateralFactory = await makeCollateralFactory()
-    })
+  beforeEach(async () => {
+    CTokenV3CollateralFactory = await makeCollateralFactory()
+  })
 
-    it('Should validate targetName correctly', async () => {
-      await expect(
-        CTokenV3CollateralFactory.deploy(
-          1,
-          USDC_USD_PRICE_FEED,
-          CUSDC_V3,
-          COMP,
-          RTOKEN_MAX_TRADE_VOL,
-          ORACLE_TIMEOUT,
-          ethers.constants.HashZero,
-          DEFAULT_THRESHOLD,
-          DELAY_UNTIL_DEFAULT,
-          REWARDS,
-          USDC_DECIMALS
-        )
-      ).to.be.revertedWith('targetName missing')
-    })
+  it('Should validate targetName correctly', async () => {
+    await expect(
+      CTokenV3CollateralFactory.deploy(
+        1,
+        USDC_USD_PRICE_FEED,
+        CUSDC_V3,
+        COMP,
+        RTOKEN_MAX_TRADE_VOL,
+        ORACLE_TIMEOUT,
+        ethers.constants.HashZero,
+        DEFAULT_THRESHOLD,
+        DELAY_UNTIL_DEFAULT,
+        REWARDS,
+        USDC_DECIMALS
+      )
+    ).to.be.revertedWith('targetName missing')
+  })
 
-    it('Should not allow missing defaultThreshold', async () => {
-      await expect(
-        CTokenV3CollateralFactory.deploy(
-          1,
-          USDC_USD_PRICE_FEED,
-          CUSDC_V3,
-          COMP,
-          RTOKEN_MAX_TRADE_VOL,
-          ORACLE_TIMEOUT,
-          ethers.utils.formatBytes32String('USD'),
-          0,
-          DELAY_UNTIL_DEFAULT,
-          REWARDS,
-          USDC_DECIMALS
-        )
-      ).to.be.revertedWith('defaultThreshold zero')
-    })
+  it('Should not allow missing defaultThreshold', async () => {
+    await expect(
+      CTokenV3CollateralFactory.deploy(
+        1,
+        USDC_USD_PRICE_FEED,
+        CUSDC_V3,
+        COMP,
+        RTOKEN_MAX_TRADE_VOL,
+        ORACLE_TIMEOUT,
+        ethers.utils.formatBytes32String('USD'),
+        0,
+        DELAY_UNTIL_DEFAULT,
+        REWARDS,
+        USDC_DECIMALS
+      )
+    ).to.be.revertedWith('defaultThreshold zero')
+  })
 
-    it('Should not allow missing delayUntilDefault', async () => {
-      await expect(
-        CTokenV3CollateralFactory.deploy(
-          1,
-          USDC_USD_PRICE_FEED,
-          CUSDC_V3,
-          COMP,
-          RTOKEN_MAX_TRADE_VOL,
-          ORACLE_TIMEOUT,
-          ethers.utils.formatBytes32String('USD'),
-          DEFAULT_THRESHOLD,
-          0,
-          REWARDS,
-          USDC_DECIMALS
-        )
-      ).to.be.revertedWith('delayUntilDefault zero')
-    })
+  it('Should not allow missing delayUntilDefault', async () => {
+    await expect(
+      CTokenV3CollateralFactory.deploy(
+        1,
+        USDC_USD_PRICE_FEED,
+        CUSDC_V3,
+        COMP,
+        RTOKEN_MAX_TRADE_VOL,
+        ORACLE_TIMEOUT,
+        ethers.utils.formatBytes32String('USD'),
+        DEFAULT_THRESHOLD,
+        0,
+        REWARDS,
+        USDC_DECIMALS
+      )
+    ).to.be.revertedWith('delayUntilDefault zero')
+  })
 
-    it('Should not allow missing rewardERC20', async () => {
-      await expect(
-        CTokenV3CollateralFactory.deploy(
-          1,
-          USDC_USD_PRICE_FEED,
-          CUSDC_V3,
-          ZERO_ADDRESS,
-          RTOKEN_MAX_TRADE_VOL,
-          ORACLE_TIMEOUT,
-          ethers.utils.formatBytes32String('USD'),
-          DEFAULT_THRESHOLD,
-          DELAY_UNTIL_DEFAULT,
-          REWARDS,
-          USDC_DECIMALS
-        )
-      ).to.be.revertedWith('rewardERC20 missing')
-    })
+  it('Should not allow missing rewardERC20', async () => {
+    await expect(
+      CTokenV3CollateralFactory.deploy(
+        1,
+        USDC_USD_PRICE_FEED,
+        CUSDC_V3,
+        ZERO_ADDRESS,
+        RTOKEN_MAX_TRADE_VOL,
+        ORACLE_TIMEOUT,
+        ethers.utils.formatBytes32String('USD'),
+        DEFAULT_THRESHOLD,
+        DELAY_UNTIL_DEFAULT,
+        REWARDS,
+        USDC_DECIMALS
+      )
+    ).to.be.revertedWith('rewardERC20 missing')
+  })
 
-    it('Should not allow missing referenceERC20Decimals', async () => {
-      await expect(
-        CTokenV3CollateralFactory.deploy(
-          1,
-          USDC_USD_PRICE_FEED,
-          CUSDC_V3,
-          COMP,
-          RTOKEN_MAX_TRADE_VOL,
-          ORACLE_TIMEOUT,
-          ethers.utils.formatBytes32String('USD'),
-          DEFAULT_THRESHOLD,
-          DELAY_UNTIL_DEFAULT,
-          REWARDS,
-          0
-        )
-      ).to.be.revertedWith('referenceERC20Decimals missing')
-    })
+  it('Should not allow missing referenceERC20Decimals', async () => {
+    await expect(
+      CTokenV3CollateralFactory.deploy(
+        1,
+        USDC_USD_PRICE_FEED,
+        CUSDC_V3,
+        COMP,
+        RTOKEN_MAX_TRADE_VOL,
+        ORACLE_TIMEOUT,
+        ethers.utils.formatBytes32String('USD'),
+        DEFAULT_THRESHOLD,
+        DELAY_UNTIL_DEFAULT,
+        REWARDS,
+        0
+      )
+    ).to.be.revertedWith('referenceERC20Decimals missing')
+  })
 
-    it('Should not allow missing rewardsAddr', async () => {
-      await expect(
-        CTokenV3CollateralFactory.deploy(
-          1,
-          USDC_USD_PRICE_FEED,
-          CUSDC_V3,
-          COMP,
-          RTOKEN_MAX_TRADE_VOL,
-          ORACLE_TIMEOUT,
-          ethers.utils.formatBytes32String('USD'),
-          DEFAULT_THRESHOLD,
-          DELAY_UNTIL_DEFAULT,
-          ZERO_ADDRESS,
-          USDC_DECIMALS
-        )
-      ).to.be.revertedWith('rewardsAddr missing')
-    })
+  it('Should not allow missing rewardsAddr', async () => {
+    await expect(
+      CTokenV3CollateralFactory.deploy(
+        1,
+        USDC_USD_PRICE_FEED,
+        CUSDC_V3,
+        COMP,
+        RTOKEN_MAX_TRADE_VOL,
+        ORACLE_TIMEOUT,
+        ethers.utils.formatBytes32String('USD'),
+        DEFAULT_THRESHOLD,
+        DELAY_UNTIL_DEFAULT,
+        ZERO_ADDRESS,
+        USDC_DECIMALS
+      )
+    ).to.be.revertedWith('rewardsAddr missing')
   })
 })
 
