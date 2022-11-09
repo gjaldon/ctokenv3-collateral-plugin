@@ -1,11 +1,4 @@
-import {
-  OracleLib,
-  MockV3Aggregator,
-  AggregatorV3Interface,
-  CTokenV3Collateral,
-} from '../typechain-types'
 import { ethers, network } from 'hardhat'
-import { ContractFactory } from 'ethers'
 
 // Addresses
 export const RSR = '0x320623b8e4ff03373931769a31fc52a4e78b5d70'
@@ -42,77 +35,4 @@ export const setNextBlockTimestamp = async (timestamp: number | string) => {
 export const advanceTime = async (seconds: number | string) => {
   await ethers.provider.send('evm_increaseTime', [parseInt(seconds.toString())])
   await ethers.provider.send('evm_mine', [])
-}
-
-export const makeCollateralFactory = async (): Promise<ContractFactory> => {
-  const OracleLibFactory: ContractFactory = await ethers.getContractFactory('OracleLib')
-  const oracleLib: OracleLib = <OracleLib>await OracleLibFactory.deploy()
-  const CTokenV3CollateralFactory: ContractFactory = await ethers.getContractFactory(
-    'CTokenV3Collateral',
-    {
-      libraries: { OracleLib: oracleLib.address },
-    }
-  )
-
-  return CTokenV3CollateralFactory
-}
-
-interface Collateral {
-  collateral: CTokenV3Collateral
-  chainlinkFeed: AggregatorV3Interface
-}
-
-interface CollateralWithMockFeed {
-  collateral: CTokenV3Collateral
-  chainlinkFeed: MockV3Aggregator
-}
-
-export const deployCollateralWithFeed = async (): Promise<Collateral> => {
-  const chainlinkFeed = await ethers.getContractAt('AggregatorV3Interface', USDC_USD_PRICE_FEED)
-  const CTokenV3CollateralFactory = await makeCollateralFactory()
-  const collateral = <CTokenV3Collateral>(
-    await CTokenV3CollateralFactory.deploy(
-      1,
-      chainlinkFeed.address,
-      CUSDC_V3,
-      COMP,
-      RTOKEN_MAX_TRADE_VOL,
-      ORACLE_TIMEOUT,
-      ethers.utils.formatBytes32String('USD'),
-      DEFAULT_THRESHOLD,
-      DELAY_UNTIL_DEFAULT,
-      REWARDS,
-      USDC_DECIMALS
-    )
-  )
-  await collateral.deployed()
-  return { collateral, chainlinkFeed }
-}
-
-export const deployCollateral = async (): Promise<CollateralWithMockFeed> => {
-  const CTokenV3CollateralFactory = await makeCollateralFactory()
-  const MockV3AggregatorFactory: ContractFactory = await ethers.getContractFactory(
-    'MockV3Aggregator'
-  )
-  const chainlinkFeed: MockV3Aggregator = <MockV3Aggregator>(
-    await MockV3AggregatorFactory.deploy(6, 1n * 10n ** 6n)
-  )
-
-  const collateral = <CTokenV3Collateral>(
-    await CTokenV3CollateralFactory.deploy(
-      1,
-      chainlinkFeed.address,
-      CUSDC_V3,
-      COMP,
-      RTOKEN_MAX_TRADE_VOL,
-      ORACLE_TIMEOUT,
-      ethers.utils.formatBytes32String('USD'),
-      DEFAULT_THRESHOLD,
-      DELAY_UNTIL_DEFAULT,
-      REWARDS,
-      USDC_DECIMALS
-    )
-  )
-  await collateral.deployed()
-  return { collateral, chainlinkFeed }
 }
