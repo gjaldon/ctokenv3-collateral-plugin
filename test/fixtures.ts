@@ -1,10 +1,11 @@
 import { ethers } from 'hardhat'
-import { ContractFactory, Event } from 'ethers'
+import { ContractFactory, Event, Contract } from 'ethers'
 import {
   DEFAULT_THRESHOLD,
   DELAY_UNTIL_DEFAULT,
   REWARDS,
   USDC_DECIMALS,
+  USDC_USD_PRICE_FEED,
   CUSDC_V3,
   COMP,
   RSR,
@@ -40,10 +41,12 @@ import {
   TestIRToken,
   RTokenAsset,
   FacadeRead,
+  FacadeTest,
   ERC20Mock,
   Asset,
   OracleLib,
   CTokenV3Collateral,
+  ICusdcV3,
 } from '../typechain-types'
 import { MockV3Aggregator } from '../typechain-types/reserve/contracts/plugins/mocks/ChainlinkMock.sol'
 
@@ -222,8 +225,8 @@ export const deployReserveProtocol = async () => {
   const receipt = await (
     await deployer.deploy('RTKN RToken', 'RTKN', 'mandate', owner.address, config)
   ).wait()
-  const event = receipt.events.find((e: Event) => e.event === 'RTokenCreated')
-  const mainAddr = event.args.main
+  const event = receipt!.events!.find((e: Event) => e.event === 'RTokenCreated')
+  const mainAddr = event!.args!.main
   const main: TestIMain = <TestIMain>await ethers.getContractAt('TestIMain', mainAddr)
   const rToken: TestIRToken = <TestIRToken>(
     await ethers.getContractAt('TestIRToken', await main.rToken())
@@ -237,6 +240,10 @@ export const deployReserveProtocol = async () => {
   // Deploy FacadeRead
   const FacadeReadFactory: ContractFactory = await ethers.getContractFactory('FacadeRead')
   const facade = <FacadeRead>await FacadeReadFactory.deploy()
+
+  // Deploy FacadeTest
+  const FacadeTestFactory: ContractFactory = await ethers.getContractFactory('FacadeTest')
+  const facadeTest = <FacadeTest>await FacadeTestFactory.deploy()
 
   const backingManager: TestIBackingManager = <TestIBackingManager>(
     await ethers.getContractAt('TestIBackingManager', await main.backingManager())
@@ -252,14 +259,24 @@ export const deployReserveProtocol = async () => {
     await ethers.getContractAt('RTokenAsset', await assetRegistry.toAsset(rToken.address))
   )
 
-  const { collateral, chainlinkFeed } = await deployCollateral()
+  const { collateral, chainlinkFeed, cusdcV3 } = await deployCollateral()
 
   // Register an Asset and a Collateral
   await assetRegistry.connect(owner).register(compAsset.address)
   await assetRegistry.connect(owner).register(collateral.address)
 
+  // Set initial Basket
+  const collateralERC20 = await collateral.erc20()
+  console.log(FIX_ONE)
+  await basketHandler.connect(owner).setPrimeBasket([collateralERC20], [FIX_ONE]) // CUSDC_V3 is 100% of Basket
+  await basketHandler.connect(owner).refreshBasket()
+
+  // Set up allowances
+  await backingManager.grantRTokenAllowance(collateralERC20)
+
   return {
     assetRegistry,
+    basketHandler,
     collateral,
     chainlinkFeed,
     rTokenAsset,
@@ -269,6 +286,9 @@ export const deployReserveProtocol = async () => {
     compAsset,
     rsr,
     compToken,
+    facadeTest,
+    cusdcV3,
+    backingManager,
   }
 }
 
@@ -293,6 +313,7 @@ interface Collateral {
 interface CollateralWithMockFeed {
   collateral: CTokenV3Collateral
   chainlinkFeed: MockV3Aggregator
+  cusdcV3: ICusdcV3
 }
 
 export const deployCollateralWithFeed = async (): Promise<Collateral> => {
@@ -318,14 +339,15 @@ export const deployCollateralWithFeed = async (): Promise<Collateral> => {
 }
 
 export const deployCollateral = async (): Promise<CollateralWithMockFeed> => {
-  const CTokenV3CollateralFactory = await makeCollateralFactory()
   const MockV3AggregatorFactory: ContractFactory = await ethers.getContractFactory(
     'MockV3Aggregator'
   )
   const chainlinkFeed: MockV3Aggregator = <MockV3Aggregator>(
     await MockV3AggregatorFactory.deploy(6, 1n * 10n ** 6n)
   )
+  const cusdcV3 = await ethers.getContractAt('ICusdcV3', CUSDC_V3)
 
+  const CTokenV3CollateralFactory = await makeCollateralFactory()
   const collateral = <CTokenV3Collateral>(
     await CTokenV3CollateralFactory.deploy(
       1,
@@ -342,5 +364,5 @@ export const deployCollateral = async (): Promise<CollateralWithMockFeed> => {
     )
   )
   await collateral.deployed()
-  return { collateral, chainlinkFeed }
+  return { collateral, chainlinkFeed, cusdcV3 }
 }
