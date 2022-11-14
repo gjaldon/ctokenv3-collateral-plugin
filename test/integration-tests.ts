@@ -1,17 +1,20 @@
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
 import { expect } from 'chai'
-import { ethers } from 'hardhat'
-import { ContractFactory } from 'ethers'
+import hre, { ethers } from 'hardhat'
+import { ContractFactory, Contract } from 'ethers'
 import {
   Asset,
   CTokenV3Collateral,
   ERC20Mock,
   OracleLib,
   IAssetRegistry,
+  IBasketHandler,
   TestIRToken,
   RTokenAsset,
   FacadeRead,
+  FacadeTest,
   MockV3Aggregator,
+  ICusdcV3,
 } from '../typechain-types'
 import {
   COMP,
@@ -22,12 +25,17 @@ import {
   REWARDS,
   CollateralStatus,
   advanceTime,
+  whileImpersonating,
   DEFAULT_THRESHOLD,
   DELAY_UNTIL_DEFAULT,
   RSR,
   FIX_ONE,
 } from './helpers'
 import { deployReserveProtocol } from './fixtures'
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
+
+const USDC = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
+const USDC_HOLDER = '0x0a59649758aa4d66e25f08dd01271e891fe52199'
 
 describe('Integration tests', () => {
   let compAsset: Asset
@@ -40,10 +48,17 @@ describe('Integration tests', () => {
   let rToken: TestIRToken
   let facade: FacadeRead
   let chainlinkFeed: MockV3Aggregator
+  let basketHandler: IBasketHandler
+  let facadeTest: FacadeTest
+  let cusdcV3: ICusdcV3
+  let owner: SignerWithAddress
+  let addr1: SignerWithAddress
+  let addr2: SignerWithAddress
 
   beforeEach(async () => {
     ;({
       compAsset,
+      basketHandler,
       rsrAsset,
       rsr,
       compToken,
@@ -53,7 +68,10 @@ describe('Integration tests', () => {
       assetRegistry,
       rToken,
       facade,
+      facadeTest,
+      cusdcV3,
     } = await loadFixture(deployReserveProtocol))
+    ;[owner, addr1, addr2] = await ethers.getSigners()
   })
 
   it('Should setup assets correctly', async () => {
@@ -79,12 +97,10 @@ describe('Integration tests', () => {
   })
 
   it('Should setup collateral correctly', async () => {
-    const token = await ethers.getContractAt('ERC20Mock', CUSDC_V3)
-
     expect(await collateral.isCollateral()).to.equal(true)
-    expect(await collateral.erc20()).to.equal(token.address)
+    expect(await collateral.erc20()).to.equal(cusdcV3.address)
     expect(await collateral.erc20()).to.equal(CUSDC_V3)
-    expect(await token.decimals()).to.equal(6)
+    expect(await cusdcV3.decimals()).to.equal(6)
     expect(await collateral.targetName()).to.equal(ethers.utils.formatBytes32String('USD'))
     expect(await collateral.refPerTok()).to.equal(FIX_ONE)
     expect(await collateral.targetPerRef()).to.equal(FIX_ONE)
@@ -180,9 +196,6 @@ describe('Integration tests', () => {
     expect(ERC20s[2]).to.equal(await compAsset.erc20())
     expect(ERC20s[3]).to.equal(await collateral.erc20())
 
-    // No ERC20s backing the RToken yet
-    expect(ERC20s.length).to.eql((await facade.basketTokens(rToken.address)).length + 4)
-
     // Assets
     expect(await assetRegistry.toAsset(ERC20s[0])).to.equal(rTokenAsset.address)
     expect(await assetRegistry.toAsset(ERC20s[1])).to.equal(rsrAsset.address)
@@ -190,5 +203,40 @@ describe('Integration tests', () => {
     expect(await assetRegistry.toAsset(ERC20s[3])).to.equal(collateral.address)
     // Collaterals
     expect(await assetRegistry.toColl(ERC20s[3])).to.equal(collateral.address)
+  })
+
+  it('Should register simple Basket correctly', async () => {
+    // Basket
+    expect(await basketHandler.fullyCollateralized()).to.equal(true)
+    const backing = await facade.basketTokens(rToken.address)
+    expect(backing[0]).to.equal(CUSDC_V3)
+    expect(backing.length).to.equal(1)
+
+    // Check other values
+    expect(await basketHandler.nonce()).to.be.gt(0n)
+    expect(await basketHandler.timestamp()).to.be.gt(0n)
+    expect(await basketHandler.status()).to.equal(CollateralStatus.SOUND)
+    expect(await facadeTest.callStatic.totalAssetValue(rToken.address)).to.equal(0)
+    const [isFallback, price] = await basketHandler.price(true)
+    expect(isFallback).to.equal(false)
+    expect(price).to.be.closeTo(FIX_ONE, 15n * 10n ** 15n)
+
+    // Check RToken price
+    const issueAmount: bigint = 10000n * 10n ** 18n // 1000
+    const usdc = await ethers.getContractAt('ERC20Mock', USDC)
+    const initialBal = 20000n * 10n ** 6n
+    await whileImpersonating(USDC_HOLDER, async (signer) => {
+      await usdc.connect(signer).transfer(addr1.address, initialBal)
+    })
+    await usdc.connect(addr1).approve(CUSDC_V3, ethers.constants.MaxUint256)
+    await cusdcV3.connect(addr1).supply(USDC, 20000n * 10n ** 6n)
+    await cusdcV3.connect(addr1).approve(rToken.address, ethers.constants.MaxUint256)
+    expect(await rToken.connect(addr1).issue(issueAmount)).to.emit(rToken, 'Issuance')
+
+    // Manually mine so that issuance that was started completes
+    await ethers.provider.send('evm_mine', [])
+
+    // Price of collateral maps 1:1 with rTokenAsset because it is the only Collateral in the Prime Basket
+    expect(await rTokenAsset.strictPrice()).to.equal(await collateral.strictPrice())
   })
 })
