@@ -19,8 +19,13 @@ contract CusdcV3Wrapper is ERC20 {
    * @dev Allow a user to deposit underlying tokens and mint the corresponding number of wrapped tokens.
    */
   function depositFor(address account, uint256 amount) public virtual returns (bool) {
+      uint256 underlyingBalance = underlying.balanceOf(account);
       SafeERC20.safeTransferFrom(underlying, _msgSender(), address(this), amount);
-      _mint(account, amount);
+      if (amount > underlyingBalance) {
+        _mint(account, underlyingBalance);
+      } else {
+        _mint(account, amount);
+      }
       return true;
   }
 
