@@ -1,5 +1,7 @@
 import hre, { ethers, network } from 'hardhat'
+import { expect } from 'chai'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
+import { ERC20Mock } from '../typechain-types'
 
 // Addresses
 export const RSR = '0x320623b8e4ff03373931769a31fc52a4e78b5d70'
@@ -7,6 +9,8 @@ export const USDC_USD_PRICE_FEED = '0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6'
 export const CUSDC_V3 = '0xc3d688B66703497DAA19211EEdff47f25384cdc3'
 export const COMP = '0xc00e94Cb662C3520282E6f5717214004A7f26888'
 export const REWARDS = '0x1B0e765F6224C21223AeA2af16c1C46E38885a40'
+export const USDC = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
+export const USDC_HOLDER = '0x0a59649758aa4d66e25f08dd01271e891fe52199'
 
 export const ORACLE_TIMEOUT = 281474976710655n / 2n // type(uint48).max / 2
 export const DEFAULT_THRESHOLD = 5n * 10n ** 16n // 0.05
@@ -78,4 +82,20 @@ export const whileImpersonating = async (address: string, f: ImpersonationFuncti
   })
   // If anyone ever needs it, we could make sure here that we set the balance at address back to
   // its original quantity...
+}
+
+export const allocateERC20 = async (
+  token: ERC20Mock,
+  from: string,
+  to: string,
+  balance: number | bigint
+) => {
+  if (typeof balance == 'number') {
+    balance = BigInt(balance)
+  }
+  await whileImpersonating(from, async (signer) => {
+    await token.connect(signer).transfer(to, balance)
+  })
+
+  expect(await token.balanceOf(to)).to.equal(balance)
 }

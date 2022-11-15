@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-import { USDC_HOLDER, USDC, CUSDC_V3, advanceTime, whileImpersonating } from './helpers'
+import { USDC_HOLDER, USDC, CUSDC_V3, advanceTime, allocateERC20 } from './helpers'
 import { CusdcV3Wrapper, CusdcV3Wrapper__factory, CometInterface } from '../typechain-types'
 
 const makewCSUDC = async () => {
@@ -25,11 +25,7 @@ describe('Wrapped CUSDCv3', () => {
       const wcusdcV3AsB = wcusdcV3.connect(bob)
 
       const balance = 20000e6
-      await whileImpersonating(USDC_HOLDER, async (signer) => {
-        await usdc.connect(signer).transfer(bob.address, balance)
-      })
-      expect(await usdc.balanceOf(bob.address)).to.equal(balance)
-
+      await allocateERC20(usdc, USDC_HOLDER, bob.address, balance)
       await usdcAsB.approve(CUSDC_V3, ethers.constants.MaxUint256)
       await cusdcV3AsB.supply(USDC, 20000e6)
       expect(await usdc.balanceOf(bob.address)).to.equal(0)
@@ -49,10 +45,7 @@ describe('Wrapped CUSDCv3', () => {
       const wcusdcV3AsB = wcusdcV3.connect(bob)
 
       const balance = 20000e6
-      await whileImpersonating(USDC_HOLDER, async (signer) => {
-        await usdc.connect(signer).transfer(bob.address, balance)
-      })
-      expect(await usdc.balanceOf(bob.address)).to.equal(balance)
+      await allocateERC20(usdc, USDC_HOLDER, bob.address, balance)
 
       await usdcAsB.approve(CUSDC_V3, ethers.constants.MaxUint256)
       await cusdcV3AsB.supply(USDC, 20000e6)
@@ -75,10 +68,7 @@ describe('Wrapped CUSDCv3', () => {
       const wcusdcV3AsB = wcusdcV3.connect(bob)
 
       const balance = 20000e6
-      await whileImpersonating(USDC_HOLDER, async (signer) => {
-        await usdc.connect(signer).transfer(bob.address, balance)
-      })
-      expect(await usdc.balanceOf(bob.address)).to.equal(balance)
+      await allocateERC20(usdc, USDC_HOLDER, bob.address, balance)
 
       await usdcAsB.approve(CUSDC_V3, ethers.constants.MaxUint256)
       await cusdcV3AsB.supply(USDC, 20000e6)
@@ -114,10 +104,7 @@ describe('Wrapped CUSDCv3', () => {
       const wcusdcV3AsB = wcusdcV3.connect(bob)
 
       const balance = 20000e6
-      await whileImpersonating(USDC_HOLDER, async (signer) => {
-        await usdc.connect(signer).transfer(bob.address, balance)
-      })
-      expect(await usdc.balanceOf(bob.address)).to.equal(balance)
+      await allocateERC20(usdc, USDC_HOLDER, bob.address, balance)
 
       await usdcAsB.approve(CUSDC_V3, ethers.constants.MaxUint256)
       await cusdcV3AsB.supply(USDC, 20000e6)
@@ -163,10 +150,7 @@ describe('Wrapped CUSDCv3', () => {
       const wcusdcV3AsB = wcusdcV3.connect(bob)
 
       const balance = 20000e6
-      await whileImpersonating(USDC_HOLDER, async (signer) => {
-        await usdc.connect(signer).transfer(bob.address, balance)
-      })
-      expect(await usdc.balanceOf(bob.address)).to.equal(balance)
+      await allocateERC20(usdc, USDC_HOLDER, bob.address, balance)
 
       await usdcAsB.approve(CUSDC_V3, ethers.constants.MaxUint256)
       await cusdcV3AsB.supply(USDC, 20000e6)
