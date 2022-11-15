@@ -1,19 +1,8 @@
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-import { USDC_HOLDER, USDC, CUSDC_V3, advanceTime, allocateERC20 } from './helpers'
-import { CusdcV3Wrapper, CusdcV3Wrapper__factory, CometInterface } from '../typechain-types'
-
-const makewCSUDC = async () => {
-  const cusdcV3 = <CometInterface>await ethers.getContractAt('CometInterface', CUSDC_V3)
-  const CusdcV3WrapperFactory = <CusdcV3Wrapper__factory>(
-    await ethers.getContractFactory('CusdcV3Wrapper')
-  )
-  const wcusdcV3 = <CusdcV3Wrapper>await CusdcV3WrapperFactory.deploy(cusdcV3.address)
-  const usdc = await ethers.getContractAt('ERC20Mock', USDC)
-
-  return { cusdcV3, wcusdcV3, usdc }
-}
+import { USDC_HOLDER, USDC, CUSDC_V3, advanceTime, allocateERC20, exp } from './helpers'
+import { makewCSUDC } from './fixtures'
 
 describe('Wrapped CUSDCv3', () => {
   describe('deposit', () => {
@@ -130,16 +119,16 @@ describe('Wrapped CUSDCv3', () => {
   })
 
   describe('underlying exchange rate', async () => {
-    it('returns 0 when wrapped token has 0 balance', async () => {
+    it('returns 1e18 when wrapped token has 0 balance', async () => {
       const { wcusdcV3, cusdcV3 } = await loadFixture(makewCSUDC)
       expect(await cusdcV3.balanceOf(wcusdcV3.address)).to.equal(0)
-      expect(await wcusdcV3.underlyingExchangeRate()).to.equal(0)
+      expect(await wcusdcV3.underlyingExchangeRate()).to.equal(exp(1, 18))
     })
 
-    it('returns 0 when wrapped token has 0 supply of the underlying token', async () => {
+    it('returns 1e18 when wrapped token has 0 supply of the underlying token', async () => {
       const { wcusdcV3 } = await loadFixture(makewCSUDC)
       expect(await wcusdcV3.totalSupply()).to.equal(0)
-      expect(await wcusdcV3.underlyingExchangeRate()).to.equal(0)
+      expect(await wcusdcV3.underlyingExchangeRate()).to.equal(exp(1, 18))
     })
 
     it('computes exchange rate based on total underlying balance and total supply of wrapped token', async () => {

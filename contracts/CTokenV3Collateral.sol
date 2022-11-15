@@ -2,6 +2,7 @@
 pragma solidity ^0.8.9;
 
 import "./ICollateral.sol";
+import "./ICusdcV3Wrapper.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
@@ -29,7 +30,7 @@ contract CTokenV3Collateral is ICollateral {
 
     uint256 private constant NEVER = type(uint256).max;
     uint256 private _whenDefault = NEVER;
-    
+
     constructor(
         uint192 fallbackPrice_,
         AggregatorV3Interface chainlinkFeed_,
@@ -78,8 +79,7 @@ contract CTokenV3Collateral is ICollateral {
 
         try chainlinkFeed.price_(oracleTimeout) returns (uint192 p) {
             // Check for soft default of underlying reference token
-            // D18{UoA/ref} = D18{UoA/target} * D18{target/ref} / D18
-            uint192 peg = (pricePerTarget() * targetPerRef()) / FIX_ONE;
+            uint192 peg = targetPerRef();
 
             // D18{UoA/ref}= D18{UoA/ref} * D18{1} / D18
             uint192 delta = (peg * defaultThreshold) / FIX_ONE; // D18{UoA/ref}
@@ -104,7 +104,7 @@ contract CTokenV3Collateral is ICollateral {
 
     /// @dev Since cUSDCv3 has an exchange rate of 1:1 with USDC, then {UoA/tok} = {UoA/ref}.
     function strictPrice() public view returns (uint192) {
-        return chainlinkFeed.price(oracleTimeout);
+        return chainlinkFeed.price(oracleTimeout).mul(refPerTok());
     }
 
     /// Can return 0
@@ -132,7 +132,7 @@ contract CTokenV3Collateral is ICollateral {
         }
     }
 
-    /// @dev {UoA} is USD {target} is USD so this is 1:1. 
+    /// @dev {UoA} is USD and {target} is USD so this is 1:1.
     /// @return {UoA/target} The price of a target unit in UoA
     function pricePerTarget() public pure returns (uint192) {
         return FIX_ONE;
@@ -143,10 +143,12 @@ contract CTokenV3Collateral is ICollateral {
         return FIX_ONE;
     }
 
-    /// @dev In CompoundV3, cUSDCv3 has an exchange rate of 1:1 with USDC.
+    /// @dev Returns the exchange rate between the underlying balance of CUSDC and the balance
+    ///   of the wCUSDC.
     /// @return {ref/tok} Quantity of whole reference units per whole collateral tokens
-    function refPerTok() public pure returns (uint192) {
-        return FIX_ONE;
+    function refPerTok() public view returns (uint192) {
+        uint256 exchangeRate = ICusdcV3Wrapper(address(erc20)).underlyingExchangeRate();
+        return _safeWrap(exchangeRate);
     }
 
     function isCollateral() external pure returns (bool) {
@@ -159,13 +161,10 @@ contract CTokenV3Collateral is ICollateral {
 
     /// Get the message needed to call in order to claim rewards for holding this asset.
     /// @dev Rewards are COMP tokens that will be claimed from the rewards address.
+    ///  This automatically accrues account so no need to accrue from `refresh()`.
     /// @return _to The address to send the call to
     /// @return _cd The calldata to send
-    function getClaimCalldata()
-        external
-        view
-        returns (address _to, bytes memory _cd)
-    {
+    function getClaimCalldata() external view returns (address _to, bytes memory _cd) {
         _to = rewardsAddr;
         _cd = abi.encodeWithSignature(
             "function claim(address, address, bool)",
