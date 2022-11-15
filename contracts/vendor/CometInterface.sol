@@ -9,4 +9,6 @@ import "./CometExtInterface.sol";
  * @notice An efficient monolithic money market protocol
  * @author Compound
  */
-abstract contract CometInterface is CometMainInterface, CometExtInterface {}
+abstract contract CometInterface is CometMainInterface, CometExtInterface {
+
+}
