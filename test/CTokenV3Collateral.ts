@@ -5,6 +5,8 @@ import { CTokenV3Collateral, InvalidMockV3Aggregator, MockV3Aggregator } from '.
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
 import {
   USDC_USD_PRICE_FEED,
+  USDC,
+  USDC_HOLDER,
   CUSDC_V3,
   COMP,
   RTOKEN_MAX_TRADE_VOL,
@@ -18,18 +20,20 @@ import {
   MAX_UINT256,
   getLatestBlockTimestamp,
   setNextBlockTimestamp,
+  exp,
   advanceTime,
+  allocateERC20,
 } from './helpers'
 import { deployCollateral, makeCollateralFactory } from './fixtures'
 
-describe('Constructor validation', () => {
+describe('constructor validation', () => {
   let CTokenV3CollateralFactory: ContractFactory
 
   beforeEach(async () => {
     CTokenV3CollateralFactory = await makeCollateralFactory()
   })
 
-  it('Should validate targetName correctly', async () => {
+  it('validates targetName correctly', async () => {
     await expect(
       CTokenV3CollateralFactory.deploy(
         1,
@@ -47,7 +51,7 @@ describe('Constructor validation', () => {
     ).to.be.revertedWith('targetName missing')
   })
 
-  it('Should not allow missing defaultThreshold', async () => {
+  it('does not allow missing defaultThreshold', async () => {
     await expect(
       CTokenV3CollateralFactory.deploy(
         1,
@@ -65,7 +69,7 @@ describe('Constructor validation', () => {
     ).to.be.revertedWith('defaultThreshold zero')
   })
 
-  it('Should not allow missing delayUntilDefault', async () => {
+  it('does not allow missing delayUntilDefault', async () => {
     await expect(
       CTokenV3CollateralFactory.deploy(
         1,
@@ -83,7 +87,7 @@ describe('Constructor validation', () => {
     ).to.be.revertedWith('delayUntilDefault zero')
   })
 
-  it('Should not allow missing rewardERC20', async () => {
+  it('does not allow missing rewardERC20', async () => {
     await expect(
       CTokenV3CollateralFactory.deploy(
         1,
@@ -101,7 +105,7 @@ describe('Constructor validation', () => {
     ).to.be.revertedWith('rewardERC20 missing')
   })
 
-  it('Should not allow missing referenceERC20Decimals', async () => {
+  it('does not allow missing referenceERC20Decimals', async () => {
     await expect(
       CTokenV3CollateralFactory.deploy(
         1,
@@ -138,33 +142,58 @@ describe('Constructor validation', () => {
   })
 })
 
-describe('Prices #fast', () => {
-  it('Should calculate prices correctly', async () => {
+describe('prices', () => {
+  it('prices change as USDC feed price changes', async () => {
     const { collateral, chainlinkFeed } = await loadFixture(deployCollateral)
     const { answer } = await chainlinkFeed.latestRoundData()
     const decimals = await chainlinkFeed.decimals()
-    const expectedPrice = answer.toBigInt() * 10n ** BigInt(18 - decimals)
+    const expectedPrice = exp(answer.toBigInt(), 18 - decimals)
 
     // Check initial prices
     expect(await collateral.strictPrice()).to.equal(expectedPrice)
 
     // Check refPerTok initial values
-    const expectedRefPerTok = 1n * 10n ** 18n
+    const expectedRefPerTok = exp(1, 18)
     expect(await collateral.refPerTok()).to.equal(expectedRefPerTok) // should equal 1e18
 
     // Update values in Oracles increase by 10-20%
-    const newPrice = 11n * 10n ** 7n
+    const newPrice = exp(11, 7)
     const updateAnswerTx = await chainlinkFeed.updateAnswer(newPrice)
     await updateAnswerTx.wait()
 
     // Check new prices
-    expect(await collateral.strictPrice()).to.equal(newPrice * 10n ** BigInt(18 - decimals))
+    expect(await collateral.strictPrice()).to.equal(exp(newPrice, 18 - decimals))
 
     // Check refPerTok remains the same
     expect(await collateral.refPerTok()).to.equal(expectedRefPerTok)
   })
 
-  it('Should revert if price is zero', async () => {
+  it('prices change as refPerTok changes', async () => {
+    const { collateral, usdc, cusdcV3, wcusdcV3 } = await loadFixture(deployCollateral)
+    const prevRefPerTok = await collateral.refPerTok()
+    const prevPrice = await collateral.strictPrice()
+    expect(prevRefPerTok).to.equal(exp(1, 18))
+    expect(prevPrice).to.equal(exp(1, 18))
+
+    const [_, bob] = await ethers.getSigners()
+    const usdcAsB = usdc.connect(bob)
+    const cusdcV3AsB = cusdcV3.connect(bob)
+    const wcusdcV3AsB = wcusdcV3.connect(bob)
+
+    const balance = 20000e6
+    await allocateERC20(usdc, USDC_HOLDER, bob.address, balance)
+
+    await usdcAsB.approve(CUSDC_V3, ethers.constants.MaxUint256)
+    await cusdcV3AsB.supply(USDC, balance)
+    expect(await usdc.balanceOf(bob.address)).to.equal(0)
+
+    await cusdcV3AsB.allow(wcusdcV3.address, true)
+    await wcusdcV3AsB.depositFor(bob.address, ethers.constants.MaxUint256)
+    expect(await collateral.refPerTok()).to.not.equal(prevRefPerTok)
+    expect(await collateral.strictPrice()).to.not.equal(prevPrice)
+  })
+
+  it('reverts if price is zero', async () => {
     const { collateral, chainlinkFeed } = await loadFixture(deployCollateral)
 
     // Set price of USDC to 0
@@ -187,7 +216,7 @@ describe('Prices #fast', () => {
     expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
   })
 
-  it('Should revert in case of invalid timestamp', async () => {
+  it('reverts in case of invalid timestamp', async () => {
     const { collateral, chainlinkFeed } = await loadFixture(deployCollateral)
     await chainlinkFeed.setInvalidTimestamp()
 
@@ -200,7 +229,7 @@ describe('Prices #fast', () => {
   })
 })
 
-describe('Status', () => {
+describe('status', () => {
   let collateral: CTokenV3Collateral
   let chainlinkFeed: MockV3Aggregator
 
@@ -208,7 +237,7 @@ describe('Status', () => {
     ;({ collateral, chainlinkFeed } = await loadFixture(deployCollateral))
   })
 
-  it('Should maintain status in normal situations', async () => {
+  it('maintains status in normal situations', async () => {
     // Check initial state
     expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
     expect(await collateral.whenDefault()).to.equal(MAX_UINT256)
@@ -221,7 +250,7 @@ describe('Status', () => {
     expect(await collateral.whenDefault()).to.equal(MAX_UINT256)
   })
 
-  it('Updates status in case of soft default', async () => {
+  it('updates status in case of soft default', async () => {
     const delayUntilDefault = (await collateral.delayUntilDefault()).toBigInt()
 
     // Check initial state
@@ -257,24 +286,24 @@ describe('Status', () => {
     expect(await collateral.whenDefault()).to.equal(prevWhenDefault)
   })
 
-  it('Updates status in case of hard default', async () => {
+  it('updates status in case of hard default', async () => {
     // It is not possible for CTokenV3Colllateral to hard default because {ref/tok} is
     // always 1 since USDC (ref) is always 1:1 with cUSDCV3 (tok).
   })
 
-  it('Reverts if price is stale', async () => {
+  it('reverts if price is stale', async () => {
     await advanceTime(ORACLE_TIMEOUT.toString())
     // Check new prices
     await expect(collateral.strictPrice()).to.be.revertedWithCustomError(collateral, 'StalePrice')
   })
 
-  it('Enters IFFY state when price becomes stale', async () => {
+  it('enters IFFY state when price becomes stale', async () => {
     await advanceTime(ORACLE_TIMEOUT.toString())
     await collateral.refresh()
     expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
   })
 
-  it('Reverts if Chainlink feed reverts or runs out of gas, maintains status', async () => {
+  it('reverts if Chainlink feed reverts or runs out of gas, maintains status', async () => {
     const InvalidMockV3AggregatorFactory = await ethers.getContractFactory(
       'InvalidMockV3Aggregator'
     )
