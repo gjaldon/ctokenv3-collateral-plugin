@@ -84,11 +84,13 @@ export const whileImpersonating = async (address: string, f: ImpersonationFuncti
   // its original quantity...
 }
 
+export type Numeric = number | bigint
+
 export const allocateERC20 = async (
   token: ERC20Mock,
   from: string,
   to: string,
-  balance: number | bigint
+  balance: Numeric
 ) => {
   if (typeof balance == 'number') {
     balance = BigInt(balance)
@@ -98,4 +100,8 @@ export const allocateERC20 = async (
   })
 
   expect(await token.balanceOf(to)).to.equal(balance)
+}
+
+export const exp = (i: Numeric, d: Numeric = 0): bigint => {
+  return BigInt(i) * 10n ** BigInt(d)
 }
