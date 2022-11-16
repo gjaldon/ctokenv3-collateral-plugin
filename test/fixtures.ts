@@ -292,6 +292,7 @@ export const makeReserveProtocol = async () => {
     facadeTest,
     cusdcV3,
     backingManager,
+    main,
   }
 }
 
