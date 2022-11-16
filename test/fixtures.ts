@@ -269,7 +269,6 @@ export const deployReserveProtocol = async () => {
 
   // Set initial Basket
   const collateralERC20 = await collateral.erc20()
-  console.log(FIX_ONE)
   await basketHandler.connect(owner).setPrimeBasket([collateralERC20], [FIX_ONE]) // CUSDC_V3 is 100% of Basket
   await basketHandler.connect(owner).refreshBasket()
 
@@ -373,7 +372,7 @@ export const makewCSUDC = async () => {
     await ethers.getContractFactory('CusdcV3Wrapper')
   )
   const wcusdcV3 = <CusdcV3Wrapper>await CusdcV3WrapperFactory.deploy(cusdcV3.address)
-  const usdc = await ethers.getContractAt('ERC20Mock', USDC)
+  const usdc = <ERC20Mock>await ethers.getContractAt('ERC20Mock', USDC)
 
   return { cusdcV3, wcusdcV3, usdc }
 }

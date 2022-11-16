@@ -1,5 +1,4 @@
 import hre, { ethers } from 'hardhat'
-import { expect } from 'chai'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { ERC20Mock } from '../typechain-types'
 
@@ -18,7 +17,6 @@ export const DELAY_UNTIL_DEFAULT = 86400n
 export const MAX_TRADE_VOL = 1000000n
 export const USDC_DECIMALS = 6
 
-export const MAX_UINT256 = 2n ** 256n - 1n
 export const FIX_ONE = 1n * 10n ** 18n
 
 export enum CollateralStatus {
@@ -53,20 +51,9 @@ export const whileImpersonating = async (address: string, f: ImpersonationFuncti
     method: 'hardhat_setBalance',
     params: [address, '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'],
   })
-  await hre.network.provider.request({
-    method: 'hardhat_impersonateAccount',
-    params: [address],
-  })
-  const signer = await ethers.getSigner(address)
+  const signer = await ethers.getImpersonatedSigner(address)
 
   await f(signer)
-
-  await hre.network.provider.request({
-    method: 'hardhat_stopImpersonatingAccount',
-    params: [address],
-  })
-  // If anyone ever needs it, we could make sure here that we set the balance at address back to
-  // its original quantity...
 }
 
 export type Numeric = number | bigint
@@ -80,11 +67,20 @@ export const allocateERC20 = async (
   if (typeof balance == 'number') {
     balance = BigInt(balance)
   }
+
   await whileImpersonating(from, async (signer) => {
     await token.connect(signer).transfer(to, balance)
   })
+}
 
-  expect(await token.balanceOf(to)).to.equal(balance)
+export const allocateUSDC = async (
+  to: string,
+  balance: Numeric,
+  from: string = USDC_HOLDER,
+  token: string = USDC
+) => {
+  const usdc = await ethers.getContractAt('ERC20Mock', token)
+  await allocateERC20(usdc, from, to, balance)
 }
 
 export const exp = (i: Numeric, d: Numeric = 0): bigint => {

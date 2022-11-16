@@ -2,16 +2,7 @@ import { expect } from 'chai'
 import { ethers } from 'hardhat'
 import { InvalidMockV3Aggregator } from '../typechain-types'
 import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
-import {
-  USDC,
-  USDC_HOLDER,
-  CUSDC_V3,
-  ORACLE_TIMEOUT,
-  CollateralStatus,
-  MAX_UINT256,
-  exp,
-  allocateERC20,
-} from './helpers'
+import { ORACLE_TIMEOUT, CollateralStatus, allocateUSDC, exp } from './helpers'
 import { deployCollateral, makeCollateral } from './fixtures'
 
 describe('constructor validation', () => {
@@ -85,10 +76,9 @@ describe('prices', () => {
     const wcusdcV3AsB = wcusdcV3.connect(bob)
 
     const balance = 20000e6
-    await allocateERC20(usdc, USDC_HOLDER, bob.address, balance)
-
-    await usdcAsB.approve(CUSDC_V3, ethers.constants.MaxUint256)
-    await cusdcV3AsB.supply(USDC, balance)
+    await allocateUSDC(bob.address, balance)
+    await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
+    await cusdcV3AsB.supply(usdc.address, balance)
     expect(await usdc.balanceOf(bob.address)).to.equal(0)
 
     await cusdcV3AsB.allow(wcusdcV3.address, true)
@@ -138,14 +128,14 @@ describe('status', () => {
     const { collateral } = await loadFixture(makeCollateral())
     // Check initial state
     expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
-    expect(await collateral.whenDefault()).to.equal(MAX_UINT256)
+    expect(await collateral.whenDefault()).to.equal(ethers.constants.MaxUint256)
 
     // Force updates (with no changes)
     await expect(collateral.refresh()).to.not.emit(collateral, 'DefaultStatusChanged')
 
     // State remains the same
     expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
-    expect(await collateral.whenDefault()).to.equal(MAX_UINT256)
+    expect(await collateral.whenDefault()).to.equal(ethers.constants.MaxUint256)
   })
 
   it('updates status in case of soft default', async () => {
@@ -154,7 +144,7 @@ describe('status', () => {
 
     // Check initial state
     expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
-    expect(await collateral.whenDefault()).to.equal(MAX_UINT256)
+    expect(await collateral.whenDefault()).to.equal(ethers.constants.MaxUint256)
 
     // Depeg USDC:USD - Reducing price by 20% from 1 to 0.8
     const updateAnswerTx = await chainlinkFeed.updateAnswer(8n * 10n ** 5n)
@@ -208,7 +198,7 @@ describe('status', () => {
     const InvalidMockV3AggregatorFactory = await ethers.getContractFactory(
       'InvalidMockV3Aggregator'
     )
-    const invalidChainlinkFeed: InvalidMockV3Aggregator = <InvalidMockV3Aggregator>(
+    const invalidChainlinkFeed = <InvalidMockV3Aggregator>(
       await InvalidMockV3AggregatorFactory.deploy(6, 1n * 10n ** 6n)
     )
 

@@ -1,10 +1,27 @@
 import { expect } from 'chai'
-import { ethers } from 'hardhat'
+import { ethers, network } from 'hardhat'
 import { time } from '@nomicfoundation/hardhat-network-helpers'
-import { USDC_HOLDER, USDC, CUSDC_V3, allocateERC20, exp } from './helpers'
+import { allocateUSDC, exp } from './helpers'
 import { makewCSUDC } from './fixtures'
 
 describe('Wrapped CUSDCv3', () => {
+  beforeEach(async () => {
+    // Need to reset state since running the whole test suites to all
+    // test cases in this file to fail. Strangely, all test cases
+    // pass when running just this file alone.
+    await network.provider.request({
+      method: 'hardhat_reset',
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: process.env.MAINNET_RPC_URL,
+            blockNumber: 15850930,
+          },
+        },
+      ],
+    })
+  })
+
   describe('deposit', () => {
     it('deposits max uint256 and mints only available amount of wrapped cusdc', async () => {
       const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
@@ -14,9 +31,9 @@ describe('Wrapped CUSDCv3', () => {
       const wcusdcV3AsB = wcusdcV3.connect(bob)
 
       const balance = 20000e6
-      await allocateERC20(usdc, USDC_HOLDER, bob.address, balance)
-      await usdcAsB.approve(CUSDC_V3, ethers.constants.MaxUint256)
-      await cusdcV3AsB.supply(USDC, 20000e6)
+      await allocateUSDC(bob.address, balance)
+      await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
+      await cusdcV3AsB.supply(usdc.address, 20000e6)
       expect(await usdc.balanceOf(bob.address)).to.equal(0)
 
       await cusdcV3AsB.allow(wcusdcV3.address, true)
@@ -34,10 +51,10 @@ describe('Wrapped CUSDCv3', () => {
       const wcusdcV3AsB = wcusdcV3.connect(bob)
 
       const balance = 20000e6
-      await allocateERC20(usdc, USDC_HOLDER, bob.address, balance)
+      await allocateUSDC(bob.address, balance)
 
-      await usdcAsB.approve(CUSDC_V3, ethers.constants.MaxUint256)
-      await cusdcV3AsB.supply(USDC, 20000e6)
+      await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
+      await cusdcV3AsB.supply(usdc.address, 20000e6)
       expect(await usdc.balanceOf(bob.address)).to.equal(0)
 
       await cusdcV3AsB.allow(wcusdcV3.address, true)
@@ -57,10 +74,10 @@ describe('Wrapped CUSDCv3', () => {
       const wcusdcV3AsB = wcusdcV3.connect(bob)
 
       const balance = 20000e6
-      await allocateERC20(usdc, USDC_HOLDER, bob.address, balance)
+      await allocateUSDC(bob.address, balance)
 
-      await usdcAsB.approve(CUSDC_V3, ethers.constants.MaxUint256)
-      await cusdcV3AsB.supply(USDC, 20000e6)
+      await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
+      await cusdcV3AsB.supply(usdc.address, 20000e6)
       expect(await usdc.balanceOf(bob.address)).to.equal(0)
 
       await cusdcV3AsB.allow(wcusdcV3.address, true)
@@ -93,10 +110,10 @@ describe('Wrapped CUSDCv3', () => {
       const wcusdcV3AsB = wcusdcV3.connect(bob)
 
       const balance = 20000e6
-      await allocateERC20(usdc, USDC_HOLDER, bob.address, balance)
+      await allocateUSDC(bob.address, balance)
 
-      await usdcAsB.approve(CUSDC_V3, ethers.constants.MaxUint256)
-      await cusdcV3AsB.supply(USDC, 20000e6)
+      await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
+      await cusdcV3AsB.supply(usdc.address, 20000e6)
       expect(await usdc.balanceOf(bob.address)).to.equal(0)
 
       await cusdcV3AsB.allow(wcusdcV3.address, true)
@@ -139,10 +156,10 @@ describe('Wrapped CUSDCv3', () => {
       const wcusdcV3AsB = wcusdcV3.connect(bob)
 
       const balance = 20000e6
-      await allocateERC20(usdc, USDC_HOLDER, bob.address, balance)
+      await allocateUSDC(bob.address, balance)
 
-      await usdcAsB.approve(CUSDC_V3, ethers.constants.MaxUint256)
-      await cusdcV3AsB.supply(USDC, 20000e6)
+      await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
+      await cusdcV3AsB.supply(usdc.address, 20000e6)
       expect(await usdc.balanceOf(bob.address)).to.equal(0)
 
       await cusdcV3AsB.allow(wcusdcV3.address, true)
