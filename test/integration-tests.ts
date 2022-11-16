@@ -1,86 +1,28 @@
-import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
+import { loadFixture, time, mine } from '@nomicfoundation/hardhat-network-helpers'
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
-import { ContractFactory } from 'ethers'
-import {
-  Asset,
-  CTokenV3Collateral,
-  ERC20Mock,
-  OracleLib,
-  IAssetRegistry,
-  IBasketHandler,
-  TestIRToken,
-  RTokenAsset,
-  FacadeRead,
-  FacadeTest,
-  MockV3Aggregator,
-  CometInterface,
-  TestIBackingManager,
-} from '../typechain-types'
 import {
   COMP,
-  CUSDC_V3,
-  USDC,
-  USDC_HOLDER,
   MAX_TRADE_VOL,
   ORACLE_TIMEOUT,
   REWARDS,
   CollateralStatus,
-  whileImpersonating,
-  DEFAULT_THRESHOLD,
-  DELAY_UNTIL_DEFAULT,
   RSR,
   FIX_ONE,
+  allocateUSDC,
+  exp,
 } from './helpers'
-import { deployReserveProtocol } from './fixtures'
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
+import { makeReserveProtocol, deployCollateral } from './fixtures'
 
 describe('Integration tests', () => {
-  let compAsset: Asset
-  let rsrAsset: Asset
-  let rsr: ERC20Mock
-  let compToken: ERC20Mock
-  let collateral: CTokenV3Collateral
-  let assetRegistry: IAssetRegistry
-  let rTokenAsset: RTokenAsset
-  let rToken: TestIRToken
-  let facade: FacadeRead
-  let chainlinkFeed: MockV3Aggregator
-  let basketHandler: IBasketHandler
-  let facadeTest: FacadeTest
-  let cusdcV3: CometInterface
-  let owner: SignerWithAddress
-  let addr1: SignerWithAddress
-  let addr2: SignerWithAddress
-  let backingManager: TestIBackingManager
-
-  beforeEach(async () => {
-    ;({
-      compAsset,
-      basketHandler,
-      rsrAsset,
-      rsr,
-      compToken,
-      collateral,
-      chainlinkFeed,
-      rTokenAsset,
-      assetRegistry,
-      rToken,
-      facade,
-      facadeTest,
-      cusdcV3,
-      backingManager,
-    } = await loadFixture(deployReserveProtocol))
-    ;[owner, addr1, addr2] = await ethers.getSigners()
-  })
-
-  it('Should setup assets correctly', async () => {
+  it('sets up assets', async () => {
+    const { compAsset, compToken, rsrAsset, rsr } = await loadFixture(makeReserveProtocol)
     // COMP Token
     expect(await compAsset.isCollateral()).to.equal(false)
     expect(await compAsset.erc20()).to.equal(COMP)
     expect(compToken.address).to.equal(COMP)
     expect(await compToken.decimals()).to.equal(18)
-    expect(await compAsset.strictPrice()).to.be.closeTo(51n * 10n ** 18n, 5n * 10n ** 17n) // Close to $51 USD - Nov 2022
+    expect(await compAsset.strictPrice()).to.be.closeTo(exp(51, 18), exp(5, 17)) // Close to $51 USD - Nov 2022
     expect(await compAsset.getClaimCalldata()).to.eql([ethers.constants.AddressZero, '0x'])
     expect(await compAsset.rewardERC20()).to.equal(ethers.constants.AddressZero)
     expect(await compAsset.maxTradeVolume()).to.equal(MAX_TRADE_VOL)
@@ -90,22 +32,22 @@ describe('Integration tests', () => {
     expect(await rsrAsset.erc20()).to.equal(ethers.utils.getAddress(RSR))
     expect(rsr.address).to.equal(RSR)
     expect(await rsr.decimals()).to.equal(18)
-    expect(await rsrAsset.strictPrice()).to.be.closeTo(645n * 10n ** 13n, 5n * 10n ** 12n) // Close to $0.00645
+    expect(await rsrAsset.strictPrice()).to.be.closeTo(exp(645, 13), exp(5, 12)) // Close to $0.00645
     expect(await rsrAsset.getClaimCalldata()).to.eql([ethers.constants.AddressZero, '0x'])
     expect(await rsrAsset.rewardERC20()).to.equal(ethers.constants.AddressZero)
     expect(await rsrAsset.maxTradeVolume()).to.equal(MAX_TRADE_VOL)
   })
 
-  it('Should setup collateral correctly', async () => {
+  it('sets up collateral', async () => {
+    const { collateral, wcusdcV3 } = await loadFixture(makeReserveProtocol)
     expect(await collateral.isCollateral()).to.equal(true)
-    expect(await collateral.erc20()).to.equal(cusdcV3.address)
-    expect(await collateral.erc20()).to.equal(CUSDC_V3)
-    expect(await cusdcV3.decimals()).to.equal(6)
+    expect(await collateral.erc20()).to.equal(wcusdcV3.address)
+    expect(await wcusdcV3.decimals()).to.equal(6)
     expect(await collateral.targetName()).to.equal(ethers.utils.formatBytes32String('USD'))
     expect(await collateral.refPerTok()).to.equal(FIX_ONE)
     expect(await collateral.targetPerRef()).to.equal(FIX_ONE)
     expect(await collateral.pricePerTarget()).to.equal(FIX_ONE)
-    expect(await collateral.strictPrice()).to.be.closeTo(FIX_ONE, 5n * 10n ** 16n) // Should always be close to $1
+    expect(await collateral.strictPrice()).to.be.closeTo(FIX_ONE, exp(5, 16)) // Should always be close to $1
 
     const claimCallData: string[] = await collateral.getClaimCalldata()
     expect(claimCallData[0]).to.eql(REWARDS)
@@ -117,7 +59,8 @@ describe('Integration tests', () => {
 
   const NO_PRICE_DATA_FEED = '0x51597f405303C4377E36123cBc172b13269EA163'
 
-  it('Should handle invalid/stale Price - Collateral', async () => {
+  it('handles invalid/stale price - collateral', async () => {
+    const { collateral, chainlinkFeed } = await loadFixture(makeReserveProtocol)
     // Reverts with stale price
     await time.increase(ORACLE_TIMEOUT)
     await expect(collateral.strictPrice()).to.be.revertedWithCustomError(collateral, 'StalePrice')
@@ -127,67 +70,30 @@ describe('Integration tests', () => {
     expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
 
     // CTokens Collateral with no price
-    const OracleLibFactory: ContractFactory = await ethers.getContractFactory('OracleLib')
-    const oracleLib: OracleLib = <OracleLib>await OracleLibFactory.deploy()
-    const nonpriceCtokenCollateral: CTokenV3Collateral = <CTokenV3Collateral>await (
-      await ethers.getContractFactory('CTokenV3Collateral', {
-        libraries: { OracleLib: oracleLib.address },
-      })
-    ).deploy(
-      FIX_ONE,
-      NO_PRICE_DATA_FEED,
-      CUSDC_V3,
-      compToken.address,
-      MAX_TRADE_VOL,
-      ORACLE_TIMEOUT,
-      ethers.utils.formatBytes32String('USD'),
-      DEFAULT_THRESHOLD,
-      DELAY_UNTIL_DEFAULT,
-      REWARDS,
-      6
-    )
+    const noPriceCtokenCollateral = await deployCollateral({ chainlinkFeed: NO_PRICE_DATA_FEED })
 
     // Collateral with no price info should revert
-    await expect(nonpriceCtokenCollateral.strictPrice()).to.be.reverted
-
+    await expect(noPriceCtokenCollateral.strictPrice()).to.be.reverted
     // Refresh should also revert - status is not modified
-    await expect(nonpriceCtokenCollateral.refresh()).to.be.reverted
-    expect(await nonpriceCtokenCollateral.status()).to.equal(CollateralStatus.SOUND)
+    await expect(noPriceCtokenCollateral.refresh()).to.be.reverted
+    expect(await noPriceCtokenCollateral.status()).to.equal(CollateralStatus.SOUND)
 
     // Reverts with a feed with zero price
-    const invalidpriceCtokenCollateral: CTokenV3Collateral = <CTokenV3Collateral>await (
-      await ethers.getContractFactory('CTokenV3Collateral', {
-        libraries: { OracleLib: oracleLib.address },
-      })
-    ).deploy(
-      FIX_ONE,
-      chainlinkFeed.address,
-      CUSDC_V3,
-      compToken.address,
-      MAX_TRADE_VOL,
-      ORACLE_TIMEOUT,
-      ethers.utils.formatBytes32String('USD'),
-      DEFAULT_THRESHOLD,
-      DELAY_UNTIL_DEFAULT,
-      REWARDS,
-      6
-    )
-
-    const updateAnswerTx = await chainlinkFeed.updateAnswer(0n)
-    await updateAnswerTx.wait()
-
+    await chainlinkFeed.updateAnswer(0n)
     // Reverts with zero price
-    await expect(invalidpriceCtokenCollateral.strictPrice()).to.be.revertedWithCustomError(
-      invalidpriceCtokenCollateral,
+    await expect(collateral.strictPrice()).to.be.revertedWithCustomError(
+      collateral,
       'PriceOutsideRange'
     )
-
     // Refresh should mark status IFFY
-    await invalidpriceCtokenCollateral.refresh()
-    expect(await invalidpriceCtokenCollateral.status()).to.equal(CollateralStatus.IFFY)
+    await collateral.refresh()
+    expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
   })
 
-  it('Should register ERC20s and Assets/Collateral correctly', async () => {
+  it('registers ERC20s and Assets/Collateral', async () => {
+    const { collateral, assetRegistry, rTokenAsset, rsrAsset, compAsset } = await loadFixture(
+      makeReserveProtocol
+    )
     // Check assets/collateral
     const ERC20s = await assetRegistry.erc20s()
 
@@ -205,11 +111,24 @@ describe('Integration tests', () => {
     expect(await assetRegistry.toColl(ERC20s[3])).to.equal(collateral.address)
   })
 
-  it('Should register simple Basket correctly', async () => {
+  it('registers simple basket', async () => {
+    const {
+      collateral,
+      rToken,
+      rTokenAsset,
+      basketHandler,
+      facade,
+      facadeTest,
+      cusdcV3,
+      usdc,
+      wcusdcV3,
+    } = await loadFixture(makeReserveProtocol)
+    const [_, bob] = await ethers.getSigners()
+
     // Basket
     expect(await basketHandler.fullyCollateralized()).to.equal(true)
     const backing = await facade.basketTokens(rToken.address)
-    expect(backing[0]).to.equal(CUSDC_V3)
+    expect(backing[0]).to.equal(wcusdcV3.address)
     expect(backing.length).to.equal(1)
 
     // Check other values
@@ -219,62 +138,30 @@ describe('Integration tests', () => {
     expect(await facadeTest.callStatic.totalAssetValue(rToken.address)).to.equal(0)
     const [isFallback, price] = await basketHandler.price(true)
     expect(isFallback).to.equal(false)
-    expect(price).to.be.closeTo(FIX_ONE, 15n * 10n ** 15n)
+    expect(price).to.be.closeTo(FIX_ONE, exp(15, 15))
 
     // Check RToken price
-    const issueAmount: bigint = 10000n * 10n ** 18n // 1000
-    const usdc = await ethers.getContractAt('ERC20Mock', USDC)
-    const initialBal = 20000n * 10n ** 6n
-    await whileImpersonating(USDC_HOLDER, async (signer) => {
-      await usdc.connect(signer).transfer(addr1.address, initialBal)
-    })
-    await usdc.connect(addr1).approve(CUSDC_V3, ethers.constants.MaxUint256)
-    await cusdcV3.connect(addr1).supply(USDC, 20000n * 10n ** 6n)
-    await cusdcV3.connect(addr1).approve(rToken.address, ethers.constants.MaxUint256)
-    expect(await rToken.connect(addr1).issue(issueAmount)).to.emit(rToken, 'Issuance')
+    const issueAmount = exp(10000, 18)
+    const initialBal = exp(20000, 6)
+    const usdcAsB = usdc.connect(bob)
+    const cusdcV3AsB = cusdcV3.connect(bob)
+    const wcusdcV3AsB = wcusdcV3.connect(bob)
 
-    // Manually mine so that issuance that was started completes
-    await ethers.provider.send('evm_mine', [])
+    allocateUSDC(bob.address, initialBal)
+    await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
+    expect(await cusdcV3.balanceOf(bob.address)).to.equal(0)
+    await cusdcV3AsB.supply(usdc.address, exp(20000, 6))
+    expect(await cusdcV3.balanceOf(bob.address)).to.be.closeTo(20000e6, 100e6)
+    await cusdcV3AsB.allow(wcusdcV3.address, true)
+    await wcusdcV3AsB.depositFor(bob.address, ethers.constants.MaxUint256)
+    await wcusdcV3AsB.approve(rToken.address, ethers.constants.MaxUint256)
+    expect(await rToken.connect(bob).issue(issueAmount)).to.emit(rToken, 'Issuance')
+    expect(await rToken.balanceOf(bob.address)).to.equal(issueAmount)
 
-    // Price of collateral maps 1:1 with rTokenAsset because it is the only Collateral in the Prime Basket
-    expect(await rTokenAsset.strictPrice()).to.equal(await collateral.strictPrice())
-
-    const totalsBasic = await cusdcV3.totalsBasic()
-    console.log(totalsBasic)
-    console.log(totalsBasic.baseSupplyIndex.toNumber() / 1e15)
-    console.log((10000n * 10n ** 6n * totalsBasic.baseSupplyIndex.toBigInt()) / BigInt(1e15))
-    console.log(totalsBasic.totalSupplyBase.toBigInt() / 10n ** 6n)
-    console.log(await cusdcV3.getUtilization())
-  })
-
-  it('Should increase revenue', async () => {
-    const issueAmount: bigint = 10000n * 10n ** 18n // 1000
-    const usdc = await ethers.getContractAt('ERC20Mock', USDC)
-    const initialBal = 20000n * 10n ** 6n
-    await whileImpersonating(USDC_HOLDER, async (signer) => {
-      await usdc.connect(signer).transfer(addr1.address, initialBal)
-    })
-    console.log('USDC Balance: ', await usdc.callStatic.balanceOf(addr1.address))
-    await usdc.connect(addr1).approve(CUSDC_V3, ethers.constants.MaxUint256)
-    await cusdcV3.connect(addr1).supply(USDC, 20000e6)
-    console.log('Addr1 Balance: ', await cusdcV3.callStatic.balanceOf(addr1.address))
-    console.log('Addr1 UserBasic: ', await cusdcV3.callStatic.userBasic(addr1.address))
-    console.log('Totals Basic: ', await cusdcV3.callStatic.totalsBasic())
-
-    time.increase(10000)
-    await cusdcV3.accrueAccount(addr1.address)
-    console.log('Addr1 Balance: ', await cusdcV3.callStatic.balanceOf(addr1.address))
-    console.log('Addr1 UserBasic: ', await cusdcV3.callStatic.userBasic(addr1.address))
-    console.log('Totals Basic: ', await cusdcV3.callStatic.totalsBasic())
-
-    await whileImpersonating(USDC_HOLDER, async (signer) => {
-      await usdc.connect(signer).transfer(addr2.address, initialBal)
-    })
-    await usdc.connect(addr2).approve(CUSDC_V3, ethers.constants.MaxUint256)
-    await cusdcV3.connect(addr2).supply(USDC, 20000n * 10n ** 6n)
-    await cusdcV3.accrueAccount(addr2.address)
-    console.log('Addr2 Balance: ', await cusdcV3.callStatic.balanceOf(addr2.address))
-    console.log('Addr2 UserBasic: ', await cusdcV3.callStatic.userBasic(addr2.address))
-    console.log('Totals Basic: ', await cusdcV3.callStatic.totalsBasic())
+    const collateralPrice = await collateral.strictPrice()
+    expect(await rTokenAsset.strictPrice()).to.be.closeTo(
+      collateralPrice,
+      collateralPrice.div(1000)
+    )
   })
 })

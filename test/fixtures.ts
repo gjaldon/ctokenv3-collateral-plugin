@@ -88,7 +88,7 @@ interface IImplementations {
   components: IComponents
 }
 
-export const deployReserveProtocol = async () => {
+export const makeReserveProtocol = async () => {
   // Setup Assets
   const compAsset = <Asset>await (
     await ethers.getContractFactory('Asset')
@@ -261,7 +261,7 @@ export const deployReserveProtocol = async () => {
     await ethers.getContractAt('RTokenAsset', await assetRegistry.toAsset(rToken.address))
   )
 
-  const { collateral, chainlinkFeed, cusdcV3 } = await makeCollateral()()
+  const { collateral, chainlinkFeed, cusdcV3, wcusdcV3, usdc } = await makeCollateral()()
 
   // Register an Asset and a Collateral
   await assetRegistry.connect(owner).register(compAsset.address)
@@ -276,6 +276,8 @@ export const deployReserveProtocol = async () => {
   await backingManager.grantRTokenAllowance(collateralERC20)
 
   return {
+    wcusdcV3,
+    usdc,
     assetRegistry,
     basketHandler,
     collateral,
