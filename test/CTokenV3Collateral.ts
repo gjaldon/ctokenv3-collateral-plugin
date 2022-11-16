@@ -1,21 +1,12 @@
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
-import { ContractFactory } from 'ethers'
-import { CTokenV3Collateral, InvalidMockV3Aggregator, MockV3Aggregator } from '../typechain-types'
+import { InvalidMockV3Aggregator } from '../typechain-types'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
 import {
-  USDC_USD_PRICE_FEED,
   USDC,
   USDC_HOLDER,
   CUSDC_V3,
-  COMP,
-  RTOKEN_MAX_TRADE_VOL,
   ORACLE_TIMEOUT,
-  DEFAULT_THRESHOLD,
-  DELAY_UNTIL_DEFAULT,
-  REWARDS,
-  USDC_DECIMALS,
-  ZERO_ADDRESS,
   CollateralStatus,
   MAX_UINT256,
   getLatestBlockTimestamp,
@@ -24,127 +15,43 @@ import {
   advanceTime,
   allocateERC20,
 } from './helpers'
-import { deployCollateral, makeCollateralFactory } from './fixtures'
+import { deployCollateral, makeCollateral } from './fixtures'
 
 describe('constructor validation', () => {
-  let CTokenV3CollateralFactory: ContractFactory
-
-  beforeEach(async () => {
-    CTokenV3CollateralFactory = await makeCollateralFactory()
-  })
-
-  it('validates targetName correctly', async () => {
-    await expect(
-      CTokenV3CollateralFactory.deploy(
-        1,
-        USDC_USD_PRICE_FEED,
-        CUSDC_V3,
-        COMP,
-        RTOKEN_MAX_TRADE_VOL,
-        ORACLE_TIMEOUT,
-        ethers.constants.HashZero,
-        DEFAULT_THRESHOLD,
-        DELAY_UNTIL_DEFAULT,
-        REWARDS,
-        USDC_DECIMALS
-      )
-    ).to.be.revertedWith('targetName missing')
+  it('validates targetName', async () => {
+    await expect(deployCollateral({ targetName: ethers.constants.HashZero })).to.be.revertedWith(
+      'targetName missing'
+    )
   })
 
   it('does not allow missing defaultThreshold', async () => {
-    await expect(
-      CTokenV3CollateralFactory.deploy(
-        1,
-        USDC_USD_PRICE_FEED,
-        CUSDC_V3,
-        COMP,
-        RTOKEN_MAX_TRADE_VOL,
-        ORACLE_TIMEOUT,
-        ethers.utils.formatBytes32String('USD'),
-        0,
-        DELAY_UNTIL_DEFAULT,
-        REWARDS,
-        USDC_DECIMALS
-      )
-    ).to.be.revertedWith('defaultThreshold zero')
+    await expect(deployCollateral({ defaultThreshold: 0n })).to.be.revertedWith(
+      'defaultThreshold zero'
+    )
   })
 
   it('does not allow missing delayUntilDefault', async () => {
-    await expect(
-      CTokenV3CollateralFactory.deploy(
-        1,
-        USDC_USD_PRICE_FEED,
-        CUSDC_V3,
-        COMP,
-        RTOKEN_MAX_TRADE_VOL,
-        ORACLE_TIMEOUT,
-        ethers.utils.formatBytes32String('USD'),
-        DEFAULT_THRESHOLD,
-        0,
-        REWARDS,
-        USDC_DECIMALS
-      )
-    ).to.be.revertedWith('delayUntilDefault zero')
+    await expect(deployCollateral({ delayUntilDefault: 0n })).to.be.revertedWith(
+      'delayUntilDefault zero'
+    )
   })
 
   it('does not allow missing rewardERC20', async () => {
     await expect(
-      CTokenV3CollateralFactory.deploy(
-        1,
-        USDC_USD_PRICE_FEED,
-        CUSDC_V3,
-        ZERO_ADDRESS,
-        RTOKEN_MAX_TRADE_VOL,
-        ORACLE_TIMEOUT,
-        ethers.utils.formatBytes32String('USD'),
-        DEFAULT_THRESHOLD,
-        DELAY_UNTIL_DEFAULT,
-        REWARDS,
-        USDC_DECIMALS
-      )
+      deployCollateral({ rewardERC20: ethers.constants.AddressZero })
     ).to.be.revertedWith('rewardERC20 missing')
-  })
-
-  it('does not allow missing referenceERC20Decimals', async () => {
-    await expect(
-      CTokenV3CollateralFactory.deploy(
-        1,
-        USDC_USD_PRICE_FEED,
-        CUSDC_V3,
-        COMP,
-        RTOKEN_MAX_TRADE_VOL,
-        ORACLE_TIMEOUT,
-        ethers.utils.formatBytes32String('USD'),
-        DEFAULT_THRESHOLD,
-        DELAY_UNTIL_DEFAULT,
-        REWARDS,
-        0
-      )
-    ).to.be.revertedWith('referenceERC20Decimals missing')
   })
 
   it('Should not allow missing rewardsAddr', async () => {
     await expect(
-      CTokenV3CollateralFactory.deploy(
-        1,
-        USDC_USD_PRICE_FEED,
-        CUSDC_V3,
-        COMP,
-        RTOKEN_MAX_TRADE_VOL,
-        ORACLE_TIMEOUT,
-        ethers.utils.formatBytes32String('USD'),
-        DEFAULT_THRESHOLD,
-        DELAY_UNTIL_DEFAULT,
-        ZERO_ADDRESS,
-        USDC_DECIMALS
-      )
+      deployCollateral({ rewardsAddr: ethers.constants.AddressZero })
     ).to.be.revertedWith('rewardsAddr missing')
   })
 })
 
 describe('prices', () => {
   it('prices change as USDC feed price changes', async () => {
-    const { collateral, chainlinkFeed } = await loadFixture(deployCollateral)
+    const { collateral, chainlinkFeed } = await loadFixture(makeCollateral())
     const { answer } = await chainlinkFeed.latestRoundData()
     const decimals = await chainlinkFeed.decimals()
     const expectedPrice = exp(answer.toBigInt(), 18 - decimals)
@@ -169,7 +76,7 @@ describe('prices', () => {
   })
 
   it('prices change as refPerTok changes', async () => {
-    const { collateral, usdc, cusdcV3, wcusdcV3 } = await loadFixture(deployCollateral)
+    const { collateral, usdc, cusdcV3, wcusdcV3 } = await loadFixture(makeCollateral())
     const prevRefPerTok = await collateral.refPerTok()
     const prevPrice = await collateral.strictPrice()
     expect(prevRefPerTok).to.equal(exp(1, 18))
@@ -194,7 +101,7 @@ describe('prices', () => {
   })
 
   it('reverts if price is zero', async () => {
-    const { collateral, chainlinkFeed } = await loadFixture(deployCollateral)
+    const { collateral, chainlinkFeed } = await loadFixture(makeCollateral())
 
     // Set price of USDC to 0
     const updateAnswerTx = await chainlinkFeed.updateAnswer(0)
@@ -217,7 +124,7 @@ describe('prices', () => {
   })
 
   it('reverts in case of invalid timestamp', async () => {
-    const { collateral, chainlinkFeed } = await loadFixture(deployCollateral)
+    const { collateral, chainlinkFeed } = await loadFixture(makeCollateral())
     await chainlinkFeed.setInvalidTimestamp()
 
     // Check price of token
@@ -230,14 +137,8 @@ describe('prices', () => {
 })
 
 describe('status', () => {
-  let collateral: CTokenV3Collateral
-  let chainlinkFeed: MockV3Aggregator
-
-  beforeEach(async () => {
-    ;({ collateral, chainlinkFeed } = await loadFixture(deployCollateral))
-  })
-
   it('maintains status in normal situations', async () => {
+    const { collateral } = await loadFixture(makeCollateral())
     // Check initial state
     expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
     expect(await collateral.whenDefault()).to.equal(MAX_UINT256)
@@ -251,6 +152,7 @@ describe('status', () => {
   })
 
   it('updates status in case of soft default', async () => {
+    const { collateral, chainlinkFeed } = await loadFixture(makeCollateral())
     const delayUntilDefault = (await collateral.delayUntilDefault()).toBigInt()
 
     // Check initial state
@@ -292,12 +194,14 @@ describe('status', () => {
   })
 
   it('reverts if price is stale', async () => {
+    const { collateral } = await loadFixture(makeCollateral())
     await advanceTime(ORACLE_TIMEOUT.toString())
     // Check new prices
     await expect(collateral.strictPrice()).to.be.revertedWithCustomError(collateral, 'StalePrice')
   })
 
   it('enters IFFY state when price becomes stale', async () => {
+    const { collateral } = await loadFixture(makeCollateral())
     await advanceTime(ORACLE_TIMEOUT.toString())
     await collateral.refresh()
     expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
@@ -311,20 +215,9 @@ describe('status', () => {
       await InvalidMockV3AggregatorFactory.deploy(6, 1n * 10n ** 6n)
     )
 
-    const CTokenV3CollateralFactory = await makeCollateralFactory()
-    const invalidCollateral = await CTokenV3CollateralFactory.deploy(
-      1,
-      invalidChainlinkFeed.address,
-      await collateral.erc20(),
-      await collateral.rewardERC20(),
-      await collateral.maxTradeVolume(),
-      await collateral.oracleTimeout(),
-      await collateral.targetName(),
-      await collateral.defaultThreshold(),
-      await collateral.delayUntilDefault(),
-      await collateral.rewardsAddr(),
-      await collateral.referenceERC20Decimals()
-    )
+    const invalidCollateral = await deployCollateral({
+      chainlinkFeed: invalidChainlinkFeed.address,
+    })
 
     // Reverting with no reason
     await invalidChainlinkFeed.setSimplyRevert(true)

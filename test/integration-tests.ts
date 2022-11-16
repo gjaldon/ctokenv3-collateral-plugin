@@ -14,13 +14,15 @@ import {
   FacadeRead,
   FacadeTest,
   MockV3Aggregator,
-  ICusdcV3,
+  CometInterface,
+  TestIBackingManager,
 } from '../typechain-types'
 import {
   COMP,
   CUSDC_V3,
-  ZERO_ADDRESS,
-  RTOKEN_MAX_TRADE_VOL,
+  USDC,
+  USDC_HOLDER,
+  MAX_TRADE_VOL,
   ORACLE_TIMEOUT,
   REWARDS,
   CollateralStatus,
@@ -33,9 +35,6 @@ import {
 } from './helpers'
 import { deployReserveProtocol } from './fixtures'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
-
-const USDC = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
-const USDC_HOLDER = '0x0a59649758aa4d66e25f08dd01271e891fe52199'
 
 describe('Integration tests', () => {
   let compAsset: Asset
@@ -50,10 +49,11 @@ describe('Integration tests', () => {
   let chainlinkFeed: MockV3Aggregator
   let basketHandler: IBasketHandler
   let facadeTest: FacadeTest
-  let cusdcV3: ICusdcV3
+  let cusdcV3: CometInterface
   let owner: SignerWithAddress
   let addr1: SignerWithAddress
   let addr2: SignerWithAddress
+  let backingManager: TestIBackingManager
 
   beforeEach(async () => {
     ;({
@@ -70,6 +70,7 @@ describe('Integration tests', () => {
       facade,
       facadeTest,
       cusdcV3,
+      backingManager,
     } = await loadFixture(deployReserveProtocol))
     ;[owner, addr1, addr2] = await ethers.getSigners()
   })
@@ -81,9 +82,9 @@ describe('Integration tests', () => {
     expect(compToken.address).to.equal(COMP)
     expect(await compToken.decimals()).to.equal(18)
     expect(await compAsset.strictPrice()).to.be.closeTo(51n * 10n ** 18n, 5n * 10n ** 17n) // Close to $51 USD - Nov 2022
-    expect(await compAsset.getClaimCalldata()).to.eql([ZERO_ADDRESS, '0x'])
-    expect(await compAsset.rewardERC20()).to.equal(ZERO_ADDRESS)
-    expect(await compAsset.maxTradeVolume()).to.equal(RTOKEN_MAX_TRADE_VOL)
+    expect(await compAsset.getClaimCalldata()).to.eql([ethers.constants.AddressZero, '0x'])
+    expect(await compAsset.rewardERC20()).to.equal(ethers.constants.AddressZero)
+    expect(await compAsset.maxTradeVolume()).to.equal(MAX_TRADE_VOL)
 
     // RSR Token
     expect(await rsrAsset.isCollateral()).to.equal(false)
@@ -91,9 +92,9 @@ describe('Integration tests', () => {
     expect(rsr.address).to.equal(RSR)
     expect(await rsr.decimals()).to.equal(18)
     expect(await rsrAsset.strictPrice()).to.be.closeTo(645n * 10n ** 13n, 5n * 10n ** 12n) // Close to $0.00645
-    expect(await rsrAsset.getClaimCalldata()).to.eql([ZERO_ADDRESS, '0x'])
-    expect(await rsrAsset.rewardERC20()).to.equal(ZERO_ADDRESS)
-    expect(await rsrAsset.maxTradeVolume()).to.equal(RTOKEN_MAX_TRADE_VOL)
+    expect(await rsrAsset.getClaimCalldata()).to.eql([ethers.constants.AddressZero, '0x'])
+    expect(await rsrAsset.rewardERC20()).to.equal(ethers.constants.AddressZero)
+    expect(await rsrAsset.maxTradeVolume()).to.equal(MAX_TRADE_VOL)
   })
 
   it('Should setup collateral correctly', async () => {
@@ -112,7 +113,7 @@ describe('Integration tests', () => {
     expect(claimCallData[1]).to.not.be.empty
     expect(await collateral.rewardERC20()).to.equal(COMP)
     expect(await collateral.rewardsAddr()).to.equal(REWARDS)
-    expect(await collateral.maxTradeVolume()).to.equal(RTOKEN_MAX_TRADE_VOL)
+    expect(await collateral.maxTradeVolume()).to.equal(MAX_TRADE_VOL)
   })
 
   const NO_PRICE_DATA_FEED = '0x51597f405303C4377E36123cBc172b13269EA163'
@@ -138,7 +139,7 @@ describe('Integration tests', () => {
       NO_PRICE_DATA_FEED,
       CUSDC_V3,
       compToken.address,
-      RTOKEN_MAX_TRADE_VOL,
+      MAX_TRADE_VOL,
       ORACLE_TIMEOUT,
       ethers.utils.formatBytes32String('USD'),
       DEFAULT_THRESHOLD,
@@ -164,7 +165,7 @@ describe('Integration tests', () => {
       chainlinkFeed.address,
       CUSDC_V3,
       compToken.address,
-      RTOKEN_MAX_TRADE_VOL,
+      MAX_TRADE_VOL,
       ORACLE_TIMEOUT,
       ethers.utils.formatBytes32String('USD'),
       DEFAULT_THRESHOLD,
@@ -238,5 +239,129 @@ describe('Integration tests', () => {
 
     // Price of collateral maps 1:1 with rTokenAsset because it is the only Collateral in the Prime Basket
     expect(await rTokenAsset.strictPrice()).to.equal(await collateral.strictPrice())
+
+    const totalsBasic = await cusdcV3.totalsBasic()
+    console.log(totalsBasic)
+    console.log(totalsBasic.baseSupplyIndex.toNumber() / 1e15)
+    console.log((10000n * 10n ** 6n * totalsBasic.baseSupplyIndex.toBigInt()) / BigInt(1e15))
+    console.log(totalsBasic.totalSupplyBase.toBigInt() / 10n ** 6n)
+    console.log(await cusdcV3.getUtilization())
   })
+
+  it('Should increase revenue', async () => {
+    const issueAmount: bigint = 10000n * 10n ** 18n // 1000
+    const usdc = await ethers.getContractAt('ERC20Mock', USDC)
+    const initialBal = 20000n * 10n ** 6n
+    await whileImpersonating(USDC_HOLDER, async (signer) => {
+      await usdc.connect(signer).transfer(addr1.address, initialBal)
+    })
+    console.log('USDC Balance: ', await usdc.callStatic.balanceOf(addr1.address))
+    await usdc.connect(addr1).approve(CUSDC_V3, ethers.constants.MaxUint256)
+    await cusdcV3.connect(addr1).supply(USDC, 20000e6)
+    console.log('Addr1 Balance: ', await cusdcV3.callStatic.balanceOf(addr1.address))
+    console.log('Addr1 UserBasic: ', await cusdcV3.callStatic.userBasic(addr1.address))
+    console.log('Totals Basic: ', await cusdcV3.callStatic.totalsBasic())
+
+    advanceTime(10000)
+    await cusdcV3.accrueAccount(addr1.address)
+    console.log('Addr1 Balance: ', await cusdcV3.callStatic.balanceOf(addr1.address))
+    console.log('Addr1 UserBasic: ', await cusdcV3.callStatic.userBasic(addr1.address))
+    console.log('Totals Basic: ', await cusdcV3.callStatic.totalsBasic())
+
+    await whileImpersonating(USDC_HOLDER, async (signer) => {
+      await usdc.connect(signer).transfer(addr2.address, initialBal)
+    })
+    await usdc.connect(addr2).approve(CUSDC_V3, ethers.constants.MaxUint256)
+    await cusdcV3.connect(addr2).supply(USDC, 20000n * 10n ** 6n)
+    await cusdcV3.accrueAccount(addr2.address)
+    console.log('Addr2 Balance: ', await cusdcV3.callStatic.balanceOf(addr2.address))
+    console.log('Addr2 UserBasic: ', await cusdcV3.callStatic.userBasic(addr2.address))
+    console.log('Totals Basic: ', await cusdcV3.callStatic.totalsBasic())
+  })
+
+  // it('Should issue/reedem correctly with simple basket ', async function () {
+  //   const MIN_ISSUANCE_PER_BLOCK = 1000n * 10n ** 18n
+  //   const issueAmount: bigint = MIN_ISSUANCE_PER_BLOCK
+
+  //   // Check balances before
+  //   expect(await dai.balanceOf(backingManager.address)).to.equal(0)
+  //   expect(await stataDai.balanceOf(backingManager.address)).to.equal(0)
+  //   expect(await cDai.balanceOf(backingManager.address)).to.equal(0)
+  //   expect(await dai.balanceOf(addr1.address)).to.equal(initialBal)
+
+  //   // Balance for Static a Token is about 18641.55e18, about 93.21% of the provided amount (20K)
+  //   const initialBalAToken = initialBal.mul(9321).div(10000)
+  //   expect(await stataDai.balanceOf(addr1.address)).to.be.closeTo(initialBalAToken, fp('1.5'))
+  //   expect(await cDai.balanceOf(addr1.address)).to.equal(toBNDecimals(initialBal, 8).mul(100))
+
+  //   // Provide approvals
+  //   await dai.connect(addr1).approve(rToken.address, issueAmount)
+  //   await stataDai.connect(addr1).approve(rToken.address, issueAmount)
+  //   await cDai.connect(addr1).approve(rToken.address, toBNDecimals(issueAmount, 8).mul(100))
+
+  //   // Check rToken balance
+  //   expect(await rToken.balanceOf(addr1.address)).to.equal(0)
+  //   expect(await rToken.balanceOf(main.address)).to.equal(0)
+  //   expect(await rToken.totalSupply()).to.equal(0)
+
+  //   // Issue rTokens
+  //   await expect(rToken.connect(addr1).issue(issueAmount)).to.emit(rToken, 'Issuance')
+
+  //   // Check Balances after
+  //   expect(await dai.balanceOf(backingManager.address)).to.equal(issueAmount.div(4)) // 2.5K needed (25% of basket)
+  //   const issueAmtAToken = issueAmount.div(4).mul(9321).div(10000) // approx 93.21% of 2.5K needed (25% of basket)
+  //   expect(await stataDai.balanceOf(backingManager.address)).to.be.closeTo(
+  //     issueAmtAToken,
+  //     fp('1')
+  //   )
+  //   const requiredCTokens: BigNumber = bn('227116e8') // approx 227K needed (~5K, 50% of basket) - Price: ~0.022
+  //   expect(await cDai.balanceOf(backingManager.address)).to.be.closeTo(requiredCTokens, bn(1e8))
+
+  //   // Balances for user
+  //   expect(await dai.balanceOf(addr1.address)).to.equal(initialBal.sub(issueAmount.div(4)))
+  //   expect(await stataDai.balanceOf(addr1.address)).to.be.closeTo(
+  //     initialBalAToken.sub(issueAmtAToken),
+  //     fp('1.5')
+  //   )
+  //   expect(await cDai.balanceOf(addr1.address)).to.be.closeTo(
+  //     toBNDecimals(initialBal, 8).mul(100).sub(requiredCTokens),
+  //     bn(1e8)
+  //   )
+  //   // Check RTokens issued to user
+  //   expect(await rToken.balanceOf(addr1.address)).to.equal(issueAmount)
+  //   expect(await rToken.balanceOf(main.address)).to.equal(0)
+  //   expect(await rToken.totalSupply()).to.equal(issueAmount)
+
+  //   // Check asset value
+  //   expect(await facadeTest.callStatic.totalAssetValue(rToken.address)).to.be.closeTo(
+  //     issueAmount,
+  //     fp('150')
+  //   ) // approx 10K in value
+
+  //   // Redeem Rtokens
+  //   await expect(rToken.connect(addr1).redeem(issueAmount)).to.emit(rToken, 'Redemption')
+
+  //   // Check funds were transferred
+  //   expect(await rToken.balanceOf(addr1.address)).to.equal(0)
+  //   expect(await rToken.totalSupply()).to.equal(0)
+
+  //   // Check balances after - Backing Manager is empty
+  //   expect(await dai.balanceOf(backingManager.address)).to.equal(0)
+  //   expect(await stataDai.balanceOf(backingManager.address)).to.be.closeTo(bn(0), fp('0.01'))
+  //   expect(await cDai.balanceOf(backingManager.address)).to.be.closeTo(bn(0), bn('1e6'))
+
+  //   // Check funds returned to user
+  //   expect(await dai.balanceOf(addr1.address)).to.equal(initialBal)
+  //   expect(await stataDai.balanceOf(addr1.address)).to.be.closeTo(initialBalAToken, fp('1.5'))
+  //   expect(await cDai.balanceOf(addr1.address)).to.be.closeTo(
+  //     toBNDecimals(initialBal, 8).mul(100),
+  //     bn('1e7')
+  //   )
+
+  //   // Check asset value left
+  //   expect(await facadeTest.callStatic.totalAssetValue(rToken.address)).to.be.closeTo(
+  //     bn(0),
+  //     fp('0.001')
+  //   ) // Near zero
+  // })
 })

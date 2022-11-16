@@ -15,10 +15,9 @@ export const USDC_HOLDER = '0x0a59649758aa4d66e25f08dd01271e891fe52199'
 export const ORACLE_TIMEOUT = 281474976710655n / 2n // type(uint48).max / 2
 export const DEFAULT_THRESHOLD = 5n * 10n ** 16n // 0.05
 export const DELAY_UNTIL_DEFAULT = 86400n
-export const RTOKEN_MAX_TRADE_VOL = 1000000n
+export const MAX_TRADE_VOL = 1000000n
 export const USDC_DECIMALS = 6
 
-export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 export const MAX_UINT256 = 2n ** 256n - 1n
 export const FIX_ONE = 1n * 10n ** 18n
 

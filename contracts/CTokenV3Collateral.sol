@@ -9,65 +9,64 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "reserve/contracts/plugins/assets/OracleLib.sol";
 import "reserve/contracts/libraries/Fixed.sol";
 
-
 contract CTokenV3Collateral is ICollateral {
+    struct Configuration {
+        AggregatorV3Interface chainlinkFeed;
+        IERC20Metadata erc20;
+        IERC20Metadata rewardERC20;
+        address rewardsAddr;
+        bytes32 targetName;
+        uint48 oracleTimeout;
+        uint192 fallbackPrice;
+        uint192 maxTradeVolume;
+        uint192 defaultThreshold;
+        uint256 delayUntilDefault;
+    }
+
     using OracleLib for AggregatorV3Interface;
     using FixLib for uint192;
 
     AggregatorV3Interface public immutable chainlinkFeed;
     IERC20Metadata public immutable erc20;
     IERC20 public immutable rewardERC20;
-    int8 public immutable referenceERC20Decimals;
+    address public immutable rewardsAddr;
+
     uint8 public immutable erc20Decimals;
+    uint48 public immutable oracleTimeout; // {s} Seconds that an oracle value is considered valid
+
     uint192 public immutable maxTradeVolume; // {UoA}
     uint192 public immutable fallbackPrice; // {UoA}
-    uint48 public immutable oracleTimeout; // {s} Seconds that an oracle value is considered valid
     uint192 public immutable defaultThreshold; // {%} e.g. 0.05
-    address public immutable rewardsAddr;
-    uint256 public immutable delayUntilDefault; // {s} e.g 86400
-    // targetName: The canonical name of this collateral's target unit.
-    bytes32 public immutable targetName;
 
+    uint256 public immutable delayUntilDefault; // {s} e.g 86400
     uint256 private constant NEVER = type(uint256).max;
     uint256 private _whenDefault = NEVER;
 
-    constructor(
-        uint192 fallbackPrice_,
-        AggregatorV3Interface chainlinkFeed_,
-        IERC20Metadata erc20_,
-        IERC20Metadata rewardERC20_,
-        uint192 maxTradeVolume_,
-        uint48 oracleTimeout_,
-        bytes32 targetName_,
-        uint192 defaultThreshold_,
-        uint256 delayUntilDefault_,
-        address rewardsAddr_,
-        int8 referenceERC20Decimals_
-    ) {
-        require(fallbackPrice_ > 0, "fallback price zero");
-        require(address(chainlinkFeed_) != address(0), "missing chainlink feed");
-        require(address(erc20_) != address(0), "missing erc20");
-        require(maxTradeVolume_ > 0, "invalid max trade volume");
-        require(oracleTimeout_ > 0, "oracleTimeout zero");
-        require(address(rewardERC20_) != address(0), "rewardERC20 missing");
-        require(defaultThreshold_ > 0, "defaultThreshold zero");
-        require(address(rewardsAddr_) != address(0), "rewardsAddr missing");
-        require(targetName_ != bytes32(0), "targetName missing");
-        require(delayUntilDefault_ > 0, "delayUntilDefault zero");
-        require(referenceERC20Decimals_ > 0, "referenceERC20Decimals missing");
+    bytes32 public immutable targetName;
 
-        targetName = targetName_;
-        delayUntilDefault = delayUntilDefault_;
-        fallbackPrice = fallbackPrice_;
-        chainlinkFeed = chainlinkFeed_;
-        erc20 = erc20_;
+    constructor(Configuration memory config) {
+        require(config.fallbackPrice > 0, "fallback price zero");
+        require(address(config.chainlinkFeed) != address(0), "missing chainlink feed");
+        require(address(config.erc20) != address(0), "missing erc20");
+        require(config.maxTradeVolume > 0, "invalid max trade volume");
+        require(config.oracleTimeout > 0, "oracleTimeout zero");
+        require(address(config.rewardERC20) != address(0), "rewardERC20 missing");
+        require(config.defaultThreshold > 0, "defaultThreshold zero");
+        require(address(config.rewardsAddr) != address(0), "rewardsAddr missing");
+        require(config.targetName != bytes32(0), "targetName missing");
+        require(config.delayUntilDefault > 0, "delayUntilDefault zero");
+
+        targetName = config.targetName;
+        delayUntilDefault = config.delayUntilDefault;
+        fallbackPrice = config.fallbackPrice;
+        chainlinkFeed = config.chainlinkFeed;
+        erc20 = config.erc20;
         erc20Decimals = erc20.decimals();
-        rewardERC20 = rewardERC20_;
-        maxTradeVolume = maxTradeVolume_;
-        oracleTimeout = oracleTimeout_;
-        defaultThreshold = defaultThreshold_;
-        rewardsAddr = rewardsAddr_;
-        referenceERC20Decimals = referenceERC20Decimals_;
+        rewardERC20 = config.rewardERC20;
+        maxTradeVolume = config.maxTradeVolume;
+        oracleTimeout = config.oracleTimeout;
+        defaultThreshold = config.defaultThreshold;
+        rewardsAddr = config.rewardsAddr;
     }
 
     /// Refresh exchange rates and update default status.
