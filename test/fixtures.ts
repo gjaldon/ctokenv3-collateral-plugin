@@ -261,7 +261,7 @@ export const deployReserveProtocol = async () => {
     await ethers.getContractAt('RTokenAsset', await assetRegistry.toAsset(rToken.address))
   )
 
-  const { collateral, chainlinkFeed, cusdcV3 } = await deployCollateral()
+  const { collateral, chainlinkFeed, cusdcV3 } = await makeCollateral()()
 
   // Register an Asset and a Collateral
   await assetRegistry.connect(owner).register(compAsset.address)

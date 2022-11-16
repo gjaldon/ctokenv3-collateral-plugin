@@ -1,4 +1,4 @@
-import hre, { ethers, network } from 'hardhat'
+import hre, { ethers } from 'hardhat'
 import { expect } from 'chai'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { ERC20Mock } from '../typechain-types'
@@ -25,20 +25,6 @@ export enum CollateralStatus {
   SOUND,
   IFFY,
   DISABLED,
-}
-
-export const getLatestBlockTimestamp = async (): Promise<number> => {
-  const latestBlock = await ethers.provider.getBlock('latest')
-  return latestBlock.timestamp
-}
-
-export const setNextBlockTimestamp = async (timestamp: number | string) => {
-  await network.provider.send('evm_setNextBlockTimestamp', [timestamp])
-}
-
-export const advanceTime = async (seconds: number | string) => {
-  await ethers.provider.send('evm_increaseTime', [parseInt(seconds.toString())])
-  await ethers.provider.send('evm_mine', [])
 }
 
 type ImpersonationFunction<T> = (signer: SignerWithAddress) => Promise<T>

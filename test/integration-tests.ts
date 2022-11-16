@@ -1,7 +1,7 @@
-import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
+import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
 import { expect } from 'chai'
-import hre, { ethers } from 'hardhat'
-import { ContractFactory, Contract } from 'ethers'
+import { ethers } from 'hardhat'
+import { ContractFactory } from 'ethers'
 import {
   Asset,
   CTokenV3Collateral,
@@ -26,7 +26,6 @@ import {
   ORACLE_TIMEOUT,
   REWARDS,
   CollateralStatus,
-  advanceTime,
   whileImpersonating,
   DEFAULT_THRESHOLD,
   DELAY_UNTIL_DEFAULT,
@@ -120,7 +119,7 @@ describe('Integration tests', () => {
 
   it('Should handle invalid/stale Price - Collateral', async () => {
     // Reverts with stale price
-    await advanceTime(ORACLE_TIMEOUT.toString())
+    await time.increase(ORACLE_TIMEOUT)
     await expect(collateral.strictPrice()).to.be.revertedWithCustomError(collateral, 'StalePrice')
 
     // Refresh should mark status IFFY
@@ -262,7 +261,7 @@ describe('Integration tests', () => {
     console.log('Addr1 UserBasic: ', await cusdcV3.callStatic.userBasic(addr1.address))
     console.log('Totals Basic: ', await cusdcV3.callStatic.totalsBasic())
 
-    advanceTime(10000)
+    time.increase(10000)
     await cusdcV3.accrueAccount(addr1.address)
     console.log('Addr1 Balance: ', await cusdcV3.callStatic.balanceOf(addr1.address))
     console.log('Addr1 UserBasic: ', await cusdcV3.callStatic.userBasic(addr1.address))
@@ -278,90 +277,4 @@ describe('Integration tests', () => {
     console.log('Addr2 UserBasic: ', await cusdcV3.callStatic.userBasic(addr2.address))
     console.log('Totals Basic: ', await cusdcV3.callStatic.totalsBasic())
   })
-
-  // it('Should issue/reedem correctly with simple basket ', async function () {
-  //   const MIN_ISSUANCE_PER_BLOCK = 1000n * 10n ** 18n
-  //   const issueAmount: bigint = MIN_ISSUANCE_PER_BLOCK
-
-  //   // Check balances before
-  //   expect(await dai.balanceOf(backingManager.address)).to.equal(0)
-  //   expect(await stataDai.balanceOf(backingManager.address)).to.equal(0)
-  //   expect(await cDai.balanceOf(backingManager.address)).to.equal(0)
-  //   expect(await dai.balanceOf(addr1.address)).to.equal(initialBal)
-
-  //   // Balance for Static a Token is about 18641.55e18, about 93.21% of the provided amount (20K)
-  //   const initialBalAToken = initialBal.mul(9321).div(10000)
-  //   expect(await stataDai.balanceOf(addr1.address)).to.be.closeTo(initialBalAToken, fp('1.5'))
-  //   expect(await cDai.balanceOf(addr1.address)).to.equal(toBNDecimals(initialBal, 8).mul(100))
-
-  //   // Provide approvals
-  //   await dai.connect(addr1).approve(rToken.address, issueAmount)
-  //   await stataDai.connect(addr1).approve(rToken.address, issueAmount)
-  //   await cDai.connect(addr1).approve(rToken.address, toBNDecimals(issueAmount, 8).mul(100))
-
-  //   // Check rToken balance
-  //   expect(await rToken.balanceOf(addr1.address)).to.equal(0)
-  //   expect(await rToken.balanceOf(main.address)).to.equal(0)
-  //   expect(await rToken.totalSupply()).to.equal(0)
-
-  //   // Issue rTokens
-  //   await expect(rToken.connect(addr1).issue(issueAmount)).to.emit(rToken, 'Issuance')
-
-  //   // Check Balances after
-  //   expect(await dai.balanceOf(backingManager.address)).to.equal(issueAmount.div(4)) // 2.5K needed (25% of basket)
-  //   const issueAmtAToken = issueAmount.div(4).mul(9321).div(10000) // approx 93.21% of 2.5K needed (25% of basket)
-  //   expect(await stataDai.balanceOf(backingManager.address)).to.be.closeTo(
-  //     issueAmtAToken,
-  //     fp('1')
-  //   )
-  //   const requiredCTokens: BigNumber = bn('227116e8') // approx 227K needed (~5K, 50% of basket) - Price: ~0.022
-  //   expect(await cDai.balanceOf(backingManager.address)).to.be.closeTo(requiredCTokens, bn(1e8))
-
-  //   // Balances for user
-  //   expect(await dai.balanceOf(addr1.address)).to.equal(initialBal.sub(issueAmount.div(4)))
-  //   expect(await stataDai.balanceOf(addr1.address)).to.be.closeTo(
-  //     initialBalAToken.sub(issueAmtAToken),
-  //     fp('1.5')
-  //   )
-  //   expect(await cDai.balanceOf(addr1.address)).to.be.closeTo(
-  //     toBNDecimals(initialBal, 8).mul(100).sub(requiredCTokens),
-  //     bn(1e8)
-  //   )
-  //   // Check RTokens issued to user
-  //   expect(await rToken.balanceOf(addr1.address)).to.equal(issueAmount)
-  //   expect(await rToken.balanceOf(main.address)).to.equal(0)
-  //   expect(await rToken.totalSupply()).to.equal(issueAmount)
-
-  //   // Check asset value
-  //   expect(await facadeTest.callStatic.totalAssetValue(rToken.address)).to.be.closeTo(
-  //     issueAmount,
-  //     fp('150')
-  //   ) // approx 10K in value
-
-  //   // Redeem Rtokens
-  //   await expect(rToken.connect(addr1).redeem(issueAmount)).to.emit(rToken, 'Redemption')
-
-  //   // Check funds were transferred
-  //   expect(await rToken.balanceOf(addr1.address)).to.equal(0)
-  //   expect(await rToken.totalSupply()).to.equal(0)
-
-  //   // Check balances after - Backing Manager is empty
-  //   expect(await dai.balanceOf(backingManager.address)).to.equal(0)
-  //   expect(await stataDai.balanceOf(backingManager.address)).to.be.closeTo(bn(0), fp('0.01'))
-  //   expect(await cDai.balanceOf(backingManager.address)).to.be.closeTo(bn(0), bn('1e6'))
-
-  //   // Check funds returned to user
-  //   expect(await dai.balanceOf(addr1.address)).to.equal(initialBal)
-  //   expect(await stataDai.balanceOf(addr1.address)).to.be.closeTo(initialBalAToken, fp('1.5'))
-  //   expect(await cDai.balanceOf(addr1.address)).to.be.closeTo(
-  //     toBNDecimals(initialBal, 8).mul(100),
-  //     bn('1e7')
-  //   )
-
-  //   // Check asset value left
-  //   expect(await facadeTest.callStatic.totalAssetValue(rToken.address)).to.be.closeTo(
-  //     bn(0),
-  //     fp('0.001')
-  //   ) // Near zero
-  // })
 })

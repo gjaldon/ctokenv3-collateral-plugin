@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
-import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-import { USDC_HOLDER, USDC, CUSDC_V3, advanceTime, allocateERC20, exp } from './helpers'
+import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
+import { USDC_HOLDER, USDC, CUSDC_V3, allocateERC20, exp } from './helpers'
 import { makewCSUDC } from './fixtures'
 
 describe('Wrapped CUSDCv3', () => {
@@ -67,7 +67,7 @@ describe('Wrapped CUSDCv3', () => {
       await wcusdcV3AsB.depositFor(bob.address, 10000e6)
 
       const wrappedBalance = await wcusdcV3.balanceOf(bob.address)
-      advanceTime(1000)
+      time.increase(1000)
 
       expect(wrappedBalance).to.equal(await wcusdcV3.balanceOf(bob.address))
       // Underlying balance increases over time and is greater than the balance in the wrapped token
@@ -103,7 +103,7 @@ describe('Wrapped CUSDCv3', () => {
       await wcusdcV3AsB.depositFor(bob.address, 10000e6)
 
       const wrappedBalance = await wcusdcV3.balanceOf(bob.address)
-      advanceTime(1000)
+      time.increase(1000)
 
       expect(wrappedBalance).to.equal(await wcusdcV3.balanceOf(bob.address))
       // Underlying balance increases over time and is greater than the balance in the wrapped token

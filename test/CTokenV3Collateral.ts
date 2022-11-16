@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
 import { InvalidMockV3Aggregator } from '../typechain-types'
-import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
+import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
 import {
   USDC,
   USDC_HOLDER,
@@ -9,10 +9,7 @@ import {
   ORACLE_TIMEOUT,
   CollateralStatus,
   MAX_UINT256,
-  getLatestBlockTimestamp,
-  setNextBlockTimestamp,
   exp,
-  advanceTime,
   allocateERC20,
 } from './helpers'
 import { deployCollateral, makeCollateral } from './fixtures'
@@ -167,8 +164,8 @@ describe('status', () => {
     let expectedDefaultTimestamp: bigint
 
     // Set next block timestamp - for deterministic result
-    const nextBlockTimestamp = (await getLatestBlockTimestamp()) + 1
-    await setNextBlockTimestamp(nextBlockTimestamp)
+    const nextBlockTimestamp = (await time.latest()) + 1
+    await time.setNextBlockTimestamp(nextBlockTimestamp)
     expectedDefaultTimestamp = BigInt(nextBlockTimestamp) + delayUntilDefault
 
     await expect(collateral.refresh())
@@ -178,7 +175,7 @@ describe('status', () => {
     expect(await collateral.whenDefault()).to.equal(expectedDefaultTimestamp)
 
     // Move time forward past delayUntilDefault
-    await advanceTime(Number(delayUntilDefault))
+    await time.increase(delayUntilDefault)
     expect(await collateral.status()).to.equal(CollateralStatus.DISABLED)
 
     // Nothing changes if attempt to refresh after default for CTokenV3
@@ -195,14 +192,14 @@ describe('status', () => {
 
   it('reverts if price is stale', async () => {
     const { collateral } = await loadFixture(makeCollateral())
-    await advanceTime(ORACLE_TIMEOUT.toString())
+    await time.increase(ORACLE_TIMEOUT)
     // Check new prices
     await expect(collateral.strictPrice()).to.be.revertedWithCustomError(collateral, 'StalePrice')
   })
 
   it('enters IFFY state when price becomes stale', async () => {
     const { collateral } = await loadFixture(makeCollateral())
-    await advanceTime(ORACLE_TIMEOUT.toString())
+    await time.increase(ORACLE_TIMEOUT)
     await collateral.refresh()
     expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
   })
