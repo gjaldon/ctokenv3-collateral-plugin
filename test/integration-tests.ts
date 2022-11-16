@@ -11,10 +11,13 @@ import {
   FIX_ONE,
   allocateUSDC,
   exp,
+  resetFork,
 } from './helpers'
 import { makeReserveProtocol, deployCollateral } from './fixtures'
 
 describe('Integration tests', () => {
+  before(resetFork)
+
   it('sets up assets', async () => {
     const { compAsset, compToken, rsrAsset, rsr } = await loadFixture(makeReserveProtocol)
     // COMP Token

@@ -1,26 +1,11 @@
 import { expect } from 'chai'
-import { ethers, network } from 'hardhat'
+import { ethers } from 'hardhat'
 import { time } from '@nomicfoundation/hardhat-network-helpers'
-import { allocateUSDC, exp } from './helpers'
+import { allocateUSDC, exp, resetFork } from './helpers'
 import { makewCSUDC } from './fixtures'
 
 describe('Wrapped CUSDCv3', () => {
-  beforeEach(async () => {
-    // Need to reset state since running the whole test suites to all
-    // test cases in this file to fail. Strangely, all test cases
-    // pass when running just this file alone.
-    await network.provider.request({
-      method: 'hardhat_reset',
-      params: [
-        {
-          forking: {
-            jsonRpcUrl: process.env.MAINNET_RPC_URL,
-            blockNumber: 15850930,
-          },
-        },
-      ],
-    })
-  })
+  before(resetFork)
 
   describe('deposit', () => {
     it('deposits max uint256 and mints only available amount of wrapped cusdc', async () => {
@@ -84,7 +69,7 @@ describe('Wrapped CUSDCv3', () => {
       await wcusdcV3AsB.depositFor(bob.address, 10000e6)
 
       const wrappedBalance = await wcusdcV3.balanceOf(bob.address)
-      time.increase(1000)
+      await time.increase(1000)
 
       expect(wrappedBalance).to.equal(await wcusdcV3.balanceOf(bob.address))
       // Underlying balance increases over time and is greater than the balance in the wrapped token
@@ -120,7 +105,7 @@ describe('Wrapped CUSDCv3', () => {
       await wcusdcV3AsB.depositFor(bob.address, 10000e6)
 
       const wrappedBalance = await wcusdcV3.balanceOf(bob.address)
-      time.increase(1000)
+      await time.increase(1000)
 
       expect(wrappedBalance).to.equal(await wcusdcV3.balanceOf(bob.address))
       // Underlying balance increases over time and is greater than the balance in the wrapped token
