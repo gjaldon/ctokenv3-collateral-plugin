@@ -21,12 +21,12 @@ contract CusdcV3Wrapper is ERC20 {
      */
     function depositFor(address account, uint256 amount) public virtual returns (bool) {
         uint256 underlyingBalance = underlying.balanceOf(account);
-        SafeERC20.safeTransferFrom(underlying, _msgSender(), address(this), amount);
         if (amount > underlyingBalance) {
             _mint(account, underlyingBalance);
         } else {
             _mint(account, amount);
         }
+        SafeERC20.safeTransferFrom(underlying, _msgSender(), address(this), amount);
         return true;
     }
 
