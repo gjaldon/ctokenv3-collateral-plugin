@@ -1,13 +1,13 @@
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
-import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
+import { time } from '@nomicfoundation/hardhat-network-helpers'
 import { USDC_HOLDER, USDC, CUSDC_V3, allocateERC20, exp } from './helpers'
 import { makewCSUDC } from './fixtures'
 
 describe('Wrapped CUSDCv3', () => {
   describe('deposit', () => {
     it('deposits max uint256 and mints only available amount of wrapped cusdc', async () => {
-      const { usdc, wcusdcV3, cusdcV3 } = await loadFixture(makewCSUDC)
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
       const usdcAsB = usdc.connect(bob)
       const cusdcV3AsB = cusdcV3.connect(bob)
@@ -27,7 +27,7 @@ describe('Wrapped CUSDCv3', () => {
     })
 
     it('deposits less than available cusdc', async () => {
-      const { usdc, wcusdcV3, cusdcV3 } = await loadFixture(makewCSUDC)
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
       const usdcAsB = usdc.connect(bob)
       const cusdcV3AsB = cusdcV3.connect(bob)
@@ -50,7 +50,7 @@ describe('Wrapped CUSDCv3', () => {
 
   describe('withdraw', () => {
     it('withdraws underlying balance including revenue', async () => {
-      const { usdc, wcusdcV3, cusdcV3 } = await loadFixture(makewCSUDC)
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
       const usdcAsB = usdc.connect(bob)
       const cusdcV3AsB = cusdcV3.connect(bob)
@@ -86,7 +86,7 @@ describe('Wrapped CUSDCv3', () => {
 
   describe('underlying balance', async () => {
     it('returns underlying balance of user which includes revenue', async () => {
-      const { usdc, wcusdcV3, cusdcV3 } = await loadFixture(makewCSUDC)
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
       const usdcAsB = usdc.connect(bob)
       const cusdcV3AsB = cusdcV3.connect(bob)
@@ -111,7 +111,7 @@ describe('Wrapped CUSDCv3', () => {
     })
 
     it('returns 0 when user has no balance', async () => {
-      const { wcusdcV3 } = await loadFixture(makewCSUDC)
+      const { wcusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
 
       expect(await wcusdcV3.underlyingBalanceOf(bob.address)).to.equal(0)
@@ -120,19 +120,19 @@ describe('Wrapped CUSDCv3', () => {
 
   describe('underlying exchange rate', async () => {
     it('returns 1e18 when wrapped token has 0 balance', async () => {
-      const { wcusdcV3, cusdcV3 } = await loadFixture(makewCSUDC)
+      const { wcusdcV3, cusdcV3 } = await makewCSUDC()
       expect(await cusdcV3.balanceOf(wcusdcV3.address)).to.equal(0)
       expect(await wcusdcV3.underlyingExchangeRate()).to.equal(exp(1, 18))
     })
 
     it('returns 1e18 when wrapped token has 0 supply of the underlying token', async () => {
-      const { wcusdcV3 } = await loadFixture(makewCSUDC)
+      const { wcusdcV3 } = await makewCSUDC()
       expect(await wcusdcV3.totalSupply()).to.equal(0)
       expect(await wcusdcV3.underlyingExchangeRate()).to.equal(exp(1, 18))
     })
 
     it('computes exchange rate based on total underlying balance and total supply of wrapped token', async () => {
-      const { usdc, wcusdcV3, cusdcV3 } = await loadFixture(makewCSUDC)
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
       const usdcAsB = usdc.connect(bob)
       const cusdcV3AsB = cusdcV3.connect(bob)
