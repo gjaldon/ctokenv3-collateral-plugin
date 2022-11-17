@@ -3,13 +3,16 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "./ICometRewards.sol";
 
 contract CusdcV3Wrapper is ERC20 {
     IERC20 public immutable underlying;
+    address public immutable rewardsAddr;
     uint256 constant expScale = 1e18;
 
-    constructor(IERC20 cusdcv3) ERC20("Wrapped CUSDCV3", "wCUSDCv3") {
+    constructor(IERC20 cusdcv3, address rewardsAddr_) ERC20("Wrapped CUSDCV3", "wCUSDCv3") {
         underlying = cusdcv3;
+        rewardsAddr = rewardsAddr_;
     }
 
     function decimals() public pure override returns (uint8) {
@@ -65,5 +68,9 @@ contract CusdcV3Wrapper is ERC20 {
             return expScale;
         }
         return (underlying.balanceOf(address(this)) * expScale) / totalSupply;
+    }
+
+    function claim(address to) external {
+        ICometRewards(rewardsAddr).claimTo(address(underlying), address(this), to, true);
     }
 }

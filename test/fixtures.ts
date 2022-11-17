@@ -309,6 +309,7 @@ interface CollateralOpts {
   erc20?: string
   rewardERC20?: string
   rewardsAddr?: string
+  underlying?: string
   targetName?: string
   oracleTimeout?: bigint
   fallbackPrice?: bigint
@@ -319,9 +320,10 @@ interface CollateralOpts {
 
 const defaultCollateralOpts = {
   chainlinkFeed: USDC_USD_PRICE_FEED,
-  erc20: CUSDC_V3,
+  erc20: CUSDC_V3, // This will be replaced by the Wrapped CUSDC
   rewardERC20: COMP,
   rewardsAddr: REWARDS,
+  underlying: CUSDC_V3,
   targetName: ethers.utils.formatBytes32String('USD'),
   oracleTimeout: ORACLE_TIMEOUT,
   fallbackPrice: FIX_ONE,
@@ -374,7 +376,7 @@ export const makewCSUDC = async () => {
   const CusdcV3WrapperFactory = <CusdcV3Wrapper__factory>(
     await ethers.getContractFactory('CusdcV3Wrapper')
   )
-  const wcusdcV3 = <CusdcV3Wrapper>await CusdcV3WrapperFactory.deploy(cusdcV3.address)
+  const wcusdcV3 = <CusdcV3Wrapper>await CusdcV3WrapperFactory.deploy(cusdcV3.address, REWARDS)
   const usdc = <ERC20Mock>await ethers.getContractAt('ERC20Mock', USDC)
 
   return { cusdcV3, wcusdcV3, usdc }
