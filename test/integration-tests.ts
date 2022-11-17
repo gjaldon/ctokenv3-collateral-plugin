@@ -12,8 +12,10 @@ import {
   allocateUSDC,
   exp,
   resetFork,
+  enableRewardsAccrual,
 } from './helpers'
 import { makeReserveProtocol, deployCollateral } from './fixtures'
+import { ICometRewards } from '../typechain-types'
 
 describe('integration tests', () => {
   before(resetFork)
@@ -169,8 +171,9 @@ describe('integration tests', () => {
   })
 
   it('issues/reedems with simple basket', async function () {
-    const { cusdcV3, usdc, rToken, basketHandler, facadeTest, backingManager, wcusdcV3 } =
-      await loadFixture(makeReserveProtocol)
+    const { cusdcV3, usdc, rToken, facadeTest, backingManager, wcusdcV3 } = await loadFixture(
+      makeReserveProtocol
+    )
     const [_, bob] = await ethers.getSigners()
 
     // Check balances before
@@ -185,8 +188,8 @@ describe('integration tests', () => {
     allocateUSDC(bob.address, initialBal)
     await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
     expect(await cusdcV3.balanceOf(bob.address)).to.equal(0)
-    await cusdcV3AsB.supply(usdc.address, exp(20000, 6))
-    expect(await cusdcV3.balanceOf(bob.address)).to.be.closeTo(20000e6, 100e6)
+    await cusdcV3AsB.supply(usdc.address, initialBal)
+    expect(await cusdcV3.balanceOf(bob.address)).to.be.closeTo(initialBal, 100e6)
     await cusdcV3AsB.allow(wcusdcV3.address, true)
     await wcusdcV3AsB.depositFor(bob.address, ethers.constants.MaxUint256)
     await wcusdcV3AsB.approve(rToken.address, ethers.constants.MaxUint256)
@@ -239,5 +242,77 @@ describe('integration tests', () => {
       exp(9500, 18),
       exp(10, 18)
     ) // Near 9,500
+  })
+
+  it('claims rewards - COMP', async () => {
+    const { cusdcV3, usdc, rToken, backingManager, wcusdcV3, compToken } = await loadFixture(
+      makeReserveProtocol
+    )
+    const [_, bob] = await ethers.getSigners()
+
+    // Try to claim rewards at this point - Nothing for Backing Manager
+    expect(await compToken.balanceOf(backingManager.address)).to.equal(0)
+
+    // await expect(backingManager.claimAndSweepRewards())
+    //   .to.emit(backingManager, 'RewardsClaimed')
+    //   .withArgs([compToken.address, 0])
+
+    // No rewards so far
+    expect(await compToken.balanceOf(backingManager.address)).to.equal(0)
+
+    const initialBal = exp(100_000_000, 6)
+    const usdcAsB = usdc.connect(bob)
+    const cusdcV3AsB = cusdcV3.connect(bob)
+    const wcusdcV3AsB = wcusdcV3.connect(bob)
+
+    allocateUSDC(bob.address, initialBal)
+    await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
+    expect(await cusdcV3.balanceOf(bob.address)).to.equal(0)
+    await cusdcV3AsB.supply(usdc.address, initialBal)
+    expect(await cusdcV3.balanceOf(bob.address)).to.be.closeTo(initialBal, 100e6)
+    await cusdcV3AsB.allow(wcusdcV3.address, true)
+    await wcusdcV3AsB.depositFor(bob.address, ethers.constants.MaxUint256)
+    await wcusdcV3AsB.approve(rToken.address, ethers.constants.MaxUint256)
+
+    // Issue RTokens
+    const issueAmount = exp(10_000, 18)
+    await expect(rToken.connect(bob).issue(issueAmount)).to.emit(rToken, 'Issuance')
+
+    // Check RTokens issued to user
+    expect(await rToken.balanceOf(bob.address)).to.equal(issueAmount)
+
+    // Now we can claim rewards - check initial balance still 0
+    expect(await compToken.balanceOf(backingManager.address)).to.equal(0)
+    await time.increase(1000)
+    await enableRewardsAccrual(cusdcV3)
+
+    const rewards = <ICometRewards>await ethers.getContractAt('ICometRewards', REWARDS)
+    const rewardOwed = <ICometRewards.RewardOwedStruct>(
+      await rewards.callStatic.getRewardOwed(cusdcV3.address, wcusdcV3.address)
+    )
+    await wcusdcV3.claim(backingManager.address)
+    expect(await compToken.balanceOf(backingManager.address)).to.be.closeTo(
+      rewardOwed.owed,
+      exp(1, 19)
+    )
+
+    // Claim rewards
+    // await expect(backingManager.claimAndSweepRewards()).to.emit(backingManager, 'RewardsClaimed')
+
+    //   // Check rewards both in COMP
+    //   const rewardsCOMP1: BigNumber = await compToken.balanceOf(backingManager.address)
+    //   expect(rewardsCOMP1).to.be.gt(0)
+
+    //   // Keep moving time
+    //   await advanceTime(3600)
+
+    //   // Get additional rewards
+    //   await expect(backingManager.claimAndSweepRewards()).to.emit(
+    //     backingManager,
+    //     'RewardsClaimed'
+    //   )
+
+    //   const rewardsCOMP2: BigNumber = await compToken.balanceOf(backingManager.address)
+    //   expect(rewardsCOMP2.sub(rewardsCOMP1)).to.be.gt(0)
   })
 })
