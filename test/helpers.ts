@@ -1,6 +1,13 @@
 import hre, { ethers } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
-import { ERC20Mock, CometInterface, ICometConfigurator, ICometProxyAdmin } from '../typechain-types'
+import {
+  ERC20Mock,
+  CometInterface,
+  ICometConfigurator,
+  ICometProxyAdmin,
+  CusdcV3Wrapper,
+} from '../typechain-types'
+import { string } from 'hardhat/internal/core/params/argumentTypes'
 
 // Mainnet Addresses
 export const RSR = '0x320623b8e4ff03373931769a31fc52a4e78b5d70'
@@ -124,4 +131,18 @@ export const enableRewardsAccrual = async (
     )
     await proxyAdmin.connect(governor).deployAndUpgradeTo(configurator.address, cusdcV3.address)
   })
+}
+
+export const mintWcUSDC = async (
+  usdc: ERC20Mock,
+  cusdc: CometInterface,
+  wcusdc: CusdcV3Wrapper,
+  account: SignerWithAddress,
+  amount: bigint
+) => {
+  await allocateUSDC(account.address, amount)
+  await usdc.connect(account).approve(cusdc.address, ethers.constants.MaxUint256)
+  await cusdc.connect(account).supply(usdc.address, amount)
+  await cusdc.connect(account).allow(wcusdc.address, true)
+  await wcusdc.connect(account).depositFor(account.address, amount)
 }

@@ -1,8 +1,9 @@
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
 import { time } from '@nomicfoundation/hardhat-network-helpers'
-import { allocateUSDC, exp, resetFork } from './helpers'
+import { allocateUSDC, COMP, exp, resetFork, enableRewardsAccrual, mintWcUSDC } from './helpers'
 import { makewCSUDC } from './fixtures'
+import { ERC20Mock } from '../typechain-types'
 
 describe('Wrapped CUSDCv3', () => {
   before(resetFork)
@@ -54,29 +55,18 @@ describe('Wrapped CUSDCv3', () => {
     it('withdraws underlying balance including revenue', async () => {
       const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
-      const usdcAsB = usdc.connect(bob)
-      const cusdcV3AsB = cusdcV3.connect(bob)
-      const wcusdcV3AsB = wcusdcV3.connect(bob)
 
-      const balance = 20000e6
-      await allocateUSDC(bob.address, balance)
-
-      await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
-      await cusdcV3AsB.supply(usdc.address, 20000e6)
-      expect(await usdc.balanceOf(bob.address)).to.equal(0)
-
-      await cusdcV3AsB.allow(wcusdcV3.address, true)
-      await wcusdcV3AsB.depositFor(bob.address, 10000e6)
-
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
       const wrappedBalance = await wcusdcV3.balanceOf(bob.address)
-      await time.increase(1000)
 
+      await time.increase(1000)
       expect(wrappedBalance).to.equal(await wcusdcV3.balanceOf(bob.address))
       // Underlying balance increases over time and is greater than the balance in the wrapped token
       const underlyingBalance = await wcusdcV3.underlyingBalanceOf(bob.address)
       expect(wrappedBalance).to.be.lessThan(underlyingBalance)
 
       const remainingCusdc = await cusdcV3.balanceOf(bob.address)
+      const wcusdcV3AsB = wcusdcV3.connect(bob)
       await wcusdcV3AsB.withdrawTo(bob.address, ethers.constants.MaxUint256)
       expect(await wcusdcV3.balanceOf(bob.address)).to.equal(0)
       expect(await cusdcV3.balanceOf(bob.address)).to.be.closeTo(
@@ -86,27 +76,14 @@ describe('Wrapped CUSDCv3', () => {
     })
   })
 
-  describe('underlying balance', async () => {
+  describe('underlying balance', () => {
     it('returns underlying balance of user which includes revenue', async () => {
       const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
-      const usdcAsB = usdc.connect(bob)
-      const cusdcV3AsB = cusdcV3.connect(bob)
-      const wcusdcV3AsB = wcusdcV3.connect(bob)
 
-      const balance = 20000e6
-      await allocateUSDC(bob.address, balance)
-
-      await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
-      await cusdcV3AsB.supply(usdc.address, 20000e6)
-      expect(await usdc.balanceOf(bob.address)).to.equal(0)
-
-      await cusdcV3AsB.allow(wcusdcV3.address, true)
-      await wcusdcV3AsB.depositFor(bob.address, 10000e6)
-
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
       const wrappedBalance = await wcusdcV3.balanceOf(bob.address)
       await time.increase(1000)
-
       expect(wrappedBalance).to.equal(await wcusdcV3.balanceOf(bob.address))
       // Underlying balance increases over time and is greater than the balance in the wrapped token
       expect(wrappedBalance).to.be.lessThan(await wcusdcV3.underlyingBalanceOf(bob.address))
@@ -117,6 +94,12 @@ describe('Wrapped CUSDCv3', () => {
       const [_, bob] = await ethers.getSigners()
 
       expect(await wcusdcV3.underlyingBalanceOf(bob.address)).to.equal(0)
+    })
+
+    it('matches balance in cUSDCv3', async () => {
+      // Compare balance when leaving USDC in cUSDCv3 to leaving USDC balance
+      // in WcUSDCv3. The same amount and time period should lead to equal
+      // total balance (including revenue.)
     })
   })
 
@@ -136,25 +119,76 @@ describe('Wrapped CUSDCv3', () => {
     it('computes exchange rate based on total underlying balance and total supply of wrapped token', async () => {
       const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
-      const usdcAsB = usdc.connect(bob)
-      const cusdcV3AsB = cusdcV3.connect(bob)
-      const wcusdcV3AsB = wcusdcV3.connect(bob)
 
-      const balance = 20000e6
-      await allocateUSDC(bob.address, balance)
-
-      await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
-      await cusdcV3AsB.supply(usdc.address, 20000e6)
-      expect(await usdc.balanceOf(bob.address)).to.equal(0)
-
-      await cusdcV3AsB.allow(wcusdcV3.address, true)
-      await wcusdcV3AsB.depositFor(bob.address, ethers.constants.MaxUint256)
-
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
       const totalSupply = (await wcusdcV3.totalSupply()).toBigInt()
       const underlyingBalance = (await cusdcV3.balanceOf(wcusdcV3.address)).toBigInt()
       expect(await wcusdcV3.underlyingExchangeRate()).to.equal(
         (underlyingBalance * BigInt(1e18)) / totalSupply
       )
+    })
+  })
+
+  describe('claiming rewards', () => {
+    it('claims rewards and sends to claimer', async () => {
+      const { wcusdcV3, cusdcV3, usdc } = await makewCSUDC()
+      const [_, bob] = await ethers.getSigners()
+
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+      const compToken = <ERC20Mock>await ethers.getContractAt('ERC20Mock', COMP)
+      expect(await compToken.balanceOf(wcusdcV3.address)).to.equal(0)
+      await time.increase(1000)
+      await enableRewardsAccrual(cusdcV3)
+      await wcusdcV3.claim(wcusdcV3.address)
+      expect(await compToken.balanceOf(wcusdcV3.address)).to.be.greaterThan(0)
+    })
+
+    // TODO: make sure claimed rewards are based on participation
+    it('claims rewards by participation', async () => {
+      const { wcusdcV3, cusdcV3, usdc } = await makewCSUDC()
+      const [_, bob] = await ethers.getSigners()
+
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+    })
+  })
+
+  describe('baseTrackingAccrued', () => {
+    it('matches baseTrackingAccrued in cUSDCv3', async () => {
+      const { wcusdcV3, cusdcV3, usdc } = await makewCSUDC()
+      const [_, bob, don] = await ethers.getSigners()
+
+      await enableRewardsAccrual(cusdcV3)
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+
+      let wrappedTokenAccrued = await cusdcV3.baseTrackingAccrued(wcusdcV3.address)
+      expect(wrappedTokenAccrued).to.equal(await wcusdcV3.baseTrackingAccrued(bob.address))
+
+      await time.increase(1000)
+
+      await cusdcV3.accrueAccount(wcusdcV3.address)
+      await wcusdcV3.accrueAccount(bob.address)
+
+      // Bob's accrued rewards in Wrapped cUSDC should match Wrapped cUSDC's accrued rewards in cUSDC.
+      wrappedTokenAccrued = await cusdcV3.baseTrackingAccrued(wcusdcV3.address)
+      expect(wrappedTokenAccrued).to.equal(await wcusdcV3.baseTrackingAccrued(bob.address))
+      expect((await cusdcV3.callStatic.userBasic(wcusdcV3.address)).baseTrackingIndex).to.equal(
+        await wcusdcV3.baseTrackingIndex(bob.address)
+      )
+
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, don, exp(20000, 6))
+
+      await time.increase(1000)
+
+      await cusdcV3.accrueAccount(wcusdcV3.address)
+      await wcusdcV3.accrueAccount(bob.address)
+      await wcusdcV3.accrueAccount(don.address)
+
+      // All users' total accrued rewards in Wrapped cUSDC should match Wrapped cUSDC's accrued rewards in cUSDC.
+      const totalUsersAccrued = (await wcusdcV3.baseTrackingAccrued(bob.address)).add(
+        await wcusdcV3.baseTrackingAccrued(don.address)
+      )
+      wrappedTokenAccrued = await cusdcV3.baseTrackingAccrued(wcusdcV3.address)
+      expect(wrappedTokenAccrued).to.equal(totalUsersAccrued)
     })
   })
 })
