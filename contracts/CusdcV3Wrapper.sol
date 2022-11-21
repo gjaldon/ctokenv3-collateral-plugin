@@ -16,16 +16,25 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
     }
 
     uint256 constant TRACKING_INDEX_SCALE = 1e15;
+    uint64 constant RESCALE_FACTOR = 1e12;
 
     address public immutable underlying;
     IERC20 public immutable underlyingERC20;
+    IERC20 public immutable rewardERC20;
     CometInterface public immutable underlyingComet;
-    address public immutable rewardsAddr;
-    mapping(address => UserBasic) public userBasic;
+    ICometRewards public immutable rewardsAddr;
 
-    constructor(address cusdcv3, address rewardsAddr_) ERC20("Wrapped cUSDCv3", "wcUSDCv3") {
+    mapping(address => UserBasic) public userBasic;
+    mapping(address => uint256) public rewardsClaimed;
+
+    constructor(
+        address cusdcv3,
+        address rewardsAddr_,
+        address rewardERC20_
+    ) ERC20("Wrapped cUSDCv3", "wcUSDCv3") {
         underlying = cusdcv3;
-        rewardsAddr = rewardsAddr_;
+        rewardsAddr = ICometRewards(rewardsAddr_);
+        rewardERC20 = IERC20(rewardERC20_);
         underlyingERC20 = IERC20(cusdcv3);
         underlyingComet = CometInterface(cusdcv3);
     }
@@ -88,8 +97,7 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
     }
 
     function underlyingBalanceOf(address account) public view returns (uint256) {
-        uint256 wrappedTokenAmount = balanceOf(account);
-        if (wrappedTokenAmount == 0) {
+        if (balanceOf(account) == 0) {
             return 0;
         }
         TotalsBasic memory totals = underlyingComet.totalsBasic();
@@ -122,7 +130,17 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
     }
 
     function claim(address to) external {
-        ICometRewards(rewardsAddr).claimTo(address(underlying), address(this), to, true);
+        accrueAccount(to);
+        uint256 claimed = rewardsClaimed[to];
+        uint256 accrued = userBasic[to].baseTrackingAccrued * RESCALE_FACTOR;
+
+        if (accrued > claimed) {
+            uint256 owed = accrued - claimed;
+            rewardsClaimed[to] = accrued;
+
+            rewardsAddr.claimTo(underlying, address(this), address(this), true);
+            SafeERC20.safeTransfer(rewardERC20, to, owed);
+        }
     }
 
     function baseTrackingAccrued(address account) external view returns (uint64) {

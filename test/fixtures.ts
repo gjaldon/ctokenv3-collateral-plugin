@@ -376,7 +376,9 @@ export const makewCSUDC = async () => {
   const CusdcV3WrapperFactory = <CusdcV3Wrapper__factory>(
     await ethers.getContractFactory('CusdcV3Wrapper')
   )
-  const wcusdcV3 = <CusdcV3Wrapper>await CusdcV3WrapperFactory.deploy(cusdcV3.address, REWARDS)
+  const wcusdcV3 = <CusdcV3Wrapper>(
+    await CusdcV3WrapperFactory.deploy(cusdcV3.address, REWARDS, COMP)
+  )
   const usdc = <ERC20Mock>await ethers.getContractAt('ERC20Mock', USDC)
 
   return { cusdcV3, wcusdcV3, usdc }

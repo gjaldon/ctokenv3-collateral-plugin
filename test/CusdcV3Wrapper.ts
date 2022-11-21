@@ -162,17 +162,10 @@ describe('Wrapped CUSDCv3', () => {
     })
 
     it('returns 0 when user has no balance', async () => {
-      const { usdc, cusdcV3, wcusdcV3 } = await makewCSUDC()
+      const { wcusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
 
       expect(await wcusdcV3.underlyingBalanceOf(bob.address)).to.equal(0)
-      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
-      await wcusdcV3.connect(bob).withdrawTo(bob.address, ethers.constants.MaxUint256)
-      expect(await wcusdcV3.underlyingBalanceOf(bob.address)).to.equal(0)
-    })
-
-    it('takes into account accrual of interest when computing for balance', async () => {
-      // TODO: add `(uint64 baseSupplyIndex_, ) = accruedInterestIndices(getNowInternal() - lastAccrualTime);`
     })
 
     it('also accrues account in Comet to ensure that global indices are updated', async () => {
@@ -251,16 +244,49 @@ describe('Wrapped CUSDCv3', () => {
       expect(await compToken.balanceOf(wcusdcV3.address)).to.equal(0)
       await time.increase(1000)
       await enableRewardsAccrual(cusdcV3)
-      await wcusdcV3.claim(wcusdcV3.address)
-      expect(await compToken.balanceOf(wcusdcV3.address)).to.be.greaterThan(0)
+      await wcusdcV3.claim(bob.address)
+      expect(await compToken.balanceOf(bob.address)).to.be.greaterThan(0)
     })
 
-    // TODO: make sure claimed rewards are based on participation
     it('claims rewards by participation', async () => {
       const { wcusdcV3, cusdcV3, usdc } = await makewCSUDC()
-      const [_, bob] = await ethers.getSigners()
+      const [_, bob, don] = await ethers.getSigners()
+      const compToken = <ERC20Mock>await ethers.getContractAt('ERC20Mock', COMP)
 
       await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, don, exp(20000, 6))
+
+      await enableRewardsAccrual(cusdcV3)
+      await time.increase(1000)
+
+      expect(await compToken.balanceOf(bob.address)).to.equal(0)
+      expect(await compToken.balanceOf(don.address)).to.equal(0)
+      expect(await compToken.balanceOf(wcusdcV3.address)).to.equal(0)
+
+      await network.provider.send('evm_setAutomine', [false])
+      await wcusdcV3.connect(bob).claim(bob.address)
+      await wcusdcV3.connect(don).claim(don.address)
+      await network.provider.send('evm_setAutomine', [true])
+      await mine()
+
+      expect(await compToken.balanceOf(bob.address)).to.be.greaterThan(0)
+      expect(await compToken.balanceOf(bob.address)).to.equal(
+        await compToken.balanceOf(don.address)
+      )
+      // Excess COMP left from rounding behavior
+      expect(await compToken.balanceOf(wcusdcV3.address)).to.equal(1e12)
+    })
+
+    // In this forked block, rewards accrual is not yet enabled in Comet
+    it('claims no rewards when rewards accrual is not enabled', async () => {
+      const { wcusdcV3, cusdcV3, usdc } = await makewCSUDC()
+      const [_, bob] = await ethers.getSigners()
+      const compToken = <ERC20Mock>await ethers.getContractAt('ERC20Mock', COMP)
+
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+      await time.increase(1000)
+      await wcusdcV3.connect(bob).claim(bob.address)
+      expect(await compToken.balanceOf(bob.address)).to.equal(0)
     })
   })
 
