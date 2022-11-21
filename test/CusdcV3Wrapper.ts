@@ -342,6 +342,7 @@ describe('Wrapped CUSDCv3', () => {
       await wcusdcV3.connect(bob).withdrawTo(bob.address, exp(10000, 6))
 
       await time.increase(1000)
+
       await network.provider.send('evm_setAutomine', [false])
       await wcusdcV3.accrueAccount(bob.address)
       await wcusdcV3.accrueAccount(don.address)
@@ -354,6 +355,39 @@ describe('Wrapped CUSDCv3', () => {
       )
       const wrappedTokenAccrued = await cusdcV3.baseTrackingAccrued(wcusdcV3.address)
       expect(wrappedTokenAccrued).to.equal(totalUsersAccrued)
+    })
+  })
+
+  describe('get reward owed', () => {
+    it('returns reward owed after accrual and claims', async () => {
+      const { wcusdcV3, cusdcV3, usdc } = await makewCSUDC()
+      const [_, bob, don] = await ethers.getSigners()
+
+      await enableRewardsAccrual(cusdcV3)
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, don, exp(20000, 6))
+
+      await time.increase(1000)
+
+      await network.provider.send('evm_setAutomine', [false])
+      await wcusdcV3.getRewardOwed(bob.address)
+      await wcusdcV3.getRewardOwed(don.address)
+      await mine()
+      await network.provider.send('evm_setAutomine', [true])
+
+      const bobsReward = await wcusdcV3.callStatic.getRewardOwed(bob.address)
+      const donsReward = await wcusdcV3.callStatic.getRewardOwed(don.address)
+
+      expect(bobsReward).to.be.greaterThan(donsReward)
+      const accrued =
+        (await (await wcusdcV3.baseTrackingAccrued(bob.address)).toBigInt()) * exp(1, 12)
+      expect(bobsReward).to.equal(accrued)
+
+      await wcusdcV3.connect(bob).claim(bob.address)
+      expect(await wcusdcV3.callStatic.getRewardOwed(bob.address)).to.equal(0)
+
+      await time.increase(1000)
+      expect(await wcusdcV3.callStatic.getRewardOwed(bob.address)).to.be.greaterThan(0)
     })
   })
 })

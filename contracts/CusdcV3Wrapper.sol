@@ -143,6 +143,16 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
         }
     }
 
+    function getRewardOwed(address account) external returns (uint256) {
+        accrueAccount(account);
+
+        uint256 claimed = rewardsClaimed[account];
+        uint256 accrued = userBasic[account].baseTrackingAccrued * RESCALE_FACTOR;
+        uint256 owed = accrued > claimed ? accrued - claimed : 0;
+
+        return owed;
+    }
+
     function baseTrackingAccrued(address account) external view returns (uint64) {
         return userBasic[account].baseTrackingAccrued;
     }
