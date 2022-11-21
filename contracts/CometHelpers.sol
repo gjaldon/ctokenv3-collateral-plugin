@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.9;
+pragma solidity 0.8.15;
+
+import "hardhat/console.sol";
 
 contract CometHelpers {
     uint64 internal constant BASE_INDEX_SCALE = 1e15;
+    uint256 constant EXP_SCALE = 1e18;
 
     error InvalidUInt64();
     error InvalidUInt104();
     error InvalidInt256();
+    error NegativeNumber();
 
     function safe64(uint256 n) internal pure returns (uint64) {
         if (n > type(uint64).max) revert InvalidUInt64();
@@ -41,5 +45,17 @@ contract CometHelpers {
     function safe104(uint256 n) internal pure returns (uint104) {
         if (n > type(uint104).max) revert InvalidUInt104();
         return uint104(n);
+    }
+
+    function unsigned256(int256 n) internal pure returns (uint256) {
+        if (n < 0) revert NegativeNumber();
+        return uint256(n);
+    }
+
+    /**
+     * @dev Multiply a number by a factor
+     */
+    function mulFactor(uint256 n, uint256 factor) internal pure returns (uint256) {
+        return (n * factor) / EXP_SCALE;
     }
 }
