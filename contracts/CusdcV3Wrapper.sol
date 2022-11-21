@@ -69,26 +69,14 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
 
     /**
      * @dev Allow a user to burn a number of wrapped tokens and withdraw the corresponding number of underlying tokens.
-     * @param amount The amount of cUSDC being withdrawn.
+     * @param amount The amount of Wrapped cUSDC being withdrawn.
      */
     function withdrawTo(address account, uint256 amount) public virtual returns (bool) {
-        uint256 underlyingBalance = underlyingBalanceOf(account);
+        underlyingComet.accrueAccount(address(this));
         uint256 balance = balanceOf(account);
-        console.log("--------- UnderlyingBalance", underlyingBalance);
         uint256 _underlyingExchangeRate = underlyingExchangeRate();
-
-        uint256 transferAmount = (amount > underlyingBalance) ? underlyingBalance : amount;
-
-        // Initial supply to Comet gives you a smaller balance by 1. This accounts for that case
-        // so we burn the correct amount of Wrapped cUSDC.
-        uint256 burnAmount;
-        if (underlyingBalance < balance) {
-            burnAmount = balance;
-        } else {
-            burnAmount = (transferAmount * EXP_SCALE) / _underlyingExchangeRate;
-        }
-        console.log("----- Wrapped Token Balance", balanceOf(account));
-        console.log("----- Burn Amount", burnAmount);
+        uint256 burnAmount = (amount > balance) ? balance : amount;
+        uint256 transferAmount = (burnAmount * _underlyingExchangeRate) / EXP_SCALE;
 
         UserBasic memory basic = userBasic[account];
         userBasic[account] = updatedAccountIndices(basic, -signed256(transferAmount));

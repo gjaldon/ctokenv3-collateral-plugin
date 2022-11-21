@@ -67,31 +67,45 @@ describe('Wrapped CUSDCv3', () => {
     it('withdraws all of underlying balance', async () => {
       const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
-      const usdcAsB = usdc.connect(bob)
-      const cusdcV3AsB = cusdcV3.connect(bob)
+      const wcusdcV3AsB = wcusdcV3.connect(bob)
 
-      // await network.provider.send('evm_setAutomine', [false])
       await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
-      await allocateUSDC(bob.address, exp(20000, 6))
-      await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
-      await cusdcV3AsB.supply(usdc.address, exp(20000, 6))
-      // await mine(1)
 
-      await cusdcV3.accrueAccount(bob.address)
-      await wcusdcV3.accrueAccount(bob.address)
-      const wrappedBalance = await wcusdcV3.balanceOf(bob.address)
-      expect(wrappedBalance).to.equal(await wcusdcV3.balanceOf(bob.address))
-      // Underlying balance increases over time and is greater than the balance in the wrapped token
-      const underlyingBalance = await wcusdcV3.underlyingBalanceOf(bob.address)
+      await time.increase(1000)
+      // Balance of Wrapped Comet should be less than Comet balance due to
+      // interest accrual of Comet.
+      const cusdcBalance = await wcusdcV3.underlyingBalanceOf(bob.address)
+      expect(await wcusdcV3.balanceOf(bob.address)).to.be.lessThan(cusdcBalance)
 
-      // const remainingCusdc = await cusdcV3.balanceOf(bob.address)
-      // const wcusdcV3AsB = wcusdcV3.connect(bob)
-      // await wcusdcV3AsB.withdrawTo(bob.address, ethers.constants.MaxUint256)
-      // expect(await wcusdcV3.balanceOf(bob.address)).to.equal(0)
-      // expect(await cusdcV3.balanceOf(bob.address)).to.be.closeTo(
-      //   underlyingBalance.add(remainingCusdc),
-      //   1000
-      // )
+      await wcusdcV3AsB.withdrawTo(bob.address, ethers.constants.MaxUint256)
+      expect(await cusdcV3.balanceOf(wcusdcV3.address)).to.equal(0)
+      expect(await wcusdcV3.balanceOf(bob.address)).to.equal(0)
+      expect(await cusdcV3.balanceOf(bob.address)).to.be.closeTo(cusdcBalance, 50)
+    })
+
+    it('withdraws all underlying balance via multiple withdrawals', async () => {
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
+      const [_, bob] = await ethers.getSigners()
+      const wcusdcV3AsB = wcusdcV3.connect(bob)
+
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+
+      await time.increase(1000)
+      await wcusdcV3AsB.withdrawTo(bob.address, exp(10000, 6))
+      expect(await wcusdcV3.balanceOf(bob.address)).to.equal(exp(10000, 6))
+      await time.increase(1000)
+      await wcusdcV3AsB.withdrawTo(bob.address, exp(10000, 6))
+      expect(await wcusdcV3.balanceOf(bob.address)).to.equal(0)
+    })
+
+    it('withdraws 0', async () => {
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
+      const [_, bob] = await ethers.getSigners()
+      const wcusdcV3AsB = wcusdcV3.connect(bob)
+
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+      await wcusdcV3AsB.withdrawTo(bob.address, 0)
+      expect(await wcusdcV3.balanceOf(bob.address)).to.equal(exp(20000, 6))
     })
   })
 
@@ -277,7 +291,6 @@ describe('Wrapped CUSDCv3', () => {
       await wcusdcV3.connect(bob).withdrawTo(bob.address, exp(10000, 6))
 
       await time.increase(1000)
-      await cusdcV3.accrueAccount(wcusdcV3.address)
       await wcusdcV3.accrueAccount(bob.address)
       await wcusdcV3.accrueAccount(don.address)
 
@@ -287,7 +300,6 @@ describe('Wrapped CUSDCv3', () => {
       )
       // .add(await cusdcV3.baseTrackingAccrued(bob.address))
       const wrappedTokenAccrued = await cusdcV3.baseTrackingAccrued(wcusdcV3.address)
-      console.log(wrappedTokenAccrued)
       expect(wrappedTokenAccrued).to.equal(totalUsersAccrued)
     })
   })
