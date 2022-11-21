@@ -291,14 +291,16 @@ describe('Wrapped CUSDCv3', () => {
       await wcusdcV3.connect(bob).withdrawTo(bob.address, exp(10000, 6))
 
       await time.increase(1000)
+      await network.provider.send('evm_setAutomine', [false])
       await wcusdcV3.accrueAccount(bob.address)
       await wcusdcV3.accrueAccount(don.address)
+      await mine()
+      await network.provider.send('evm_setAutomine', [true])
 
       // All users' total accrued rewards in Wrapped cUSDC should match Wrapped cUSDC's accrued rewards in cUSDC.
       const totalUsersAccrued = (await wcusdcV3.baseTrackingAccrued(bob.address)).add(
         await wcusdcV3.baseTrackingAccrued(don.address)
       )
-      // .add(await cusdcV3.baseTrackingAccrued(bob.address))
       const wrappedTokenAccrued = await cusdcV3.baseTrackingAccrued(wcusdcV3.address)
       expect(wrappedTokenAccrued).to.equal(totalUsersAccrued)
     })
