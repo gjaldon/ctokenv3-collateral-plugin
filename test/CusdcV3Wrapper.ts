@@ -54,11 +54,36 @@ describe('Wrapped CUSDCv3', () => {
       const { wcusdcV3, cusdcV3, usdc } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
 
-      await enableRewardsAccrual(cusdcV3)
-
       await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
       expect((await cusdcV3.callStatic.userBasic(wcusdcV3.address)).baseTrackingIndex).to.equal(
         await wcusdcV3.baseTrackingIndex(bob.address)
+      )
+    })
+
+    it('multiple deposits leads to accurate balances and principals', async () => {
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
+      const [_, bob] = await ethers.getSigners()
+      const usdcAsB = usdc.connect(bob)
+      const cusdcV3AsB = cusdcV3.connect(bob)
+      const wcusdcV3AsB = wcusdcV3.connect(bob)
+
+      const balance = 40000e6
+      await allocateUSDC(bob.address, balance)
+      await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
+      await cusdcV3AsB.supply(usdc.address, balance)
+      await cusdcV3AsB.allow(wcusdcV3.address, true)
+
+      await wcusdcV3AsB.depositFor(bob.address, 10000e6)
+      await time.increase(1000)
+      await wcusdcV3AsB.depositFor(bob.address, 10000e6)
+      await time.increase(1000)
+      await wcusdcV3AsB.depositFor(bob.address, 10000e6)
+      await time.increase(1000)
+      await wcusdcV3AsB.depositFor(bob.address, 10000e6)
+
+      expect(await wcusdcV3.balanceOf(bob.address)).to.equal(40000e6)
+      expect(await wcusdcV3.underlyingBalanceOf(bob.address)).to.be.equal(
+        await cusdcV3.balanceOf(wcusdcV3.address)
       )
     })
   })

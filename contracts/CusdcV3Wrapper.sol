@@ -38,26 +38,26 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
      * @dev Allow a user to deposit underlying tokens and mint the corresponding number of wrapped tokens.
      */
     function depositFor(address account, uint256 amount) public virtual returns (bool) {
-        uint256 underlyingBalance = underlyingERC20.balanceOf(account);
-        // uint256 mintAmount = (amount > underlyingBalance) ? underlyingBalance : amount;
+        underlyingComet.accrueAccount(address(this));
         uint256 mintAmount;
 
-        // We use the account's baseTrackingIndex from Comet so we do not over-accrue their
-        // rewards.
-        CometInterface.UserBasic memory cometBasic = underlyingComet.userBasic(account);
         UserBasic memory basic = userBasic[account];
-
+        uint256 underlyingBalance = underlyingERC20.balanceOf(account);
         if (amount > underlyingBalance) {
             mintAmount = underlyingBalance;
-            basic.principal = uint104(cometBasic.principal);
+            CometInterface.UserBasic memory cometBasic = underlyingComet.userBasic(account);
+            basic.principal += uint104(cometBasic.principal);
         } else {
             mintAmount = amount;
+            uint104 principal = basic.principal;
             (uint64 baseSupplyIndex, ) = getSupplyIndices();
-            basic.principal = principalValueSupply(baseSupplyIndex, mintAmount);
+            uint256 balance = presentValueSupply(baseSupplyIndex, principal) + amount;
+            basic.principal = principalValueSupply(baseSupplyIndex, balance);
         }
 
         SafeERC20.safeTransferFrom(underlyingERC20, _msgSender(), address(this), mintAmount);
 
+        // We use the this contract's baseTrackingIndex from Comet so we do not over-accrue user's rewards.
         CometInterface.UserBasic memory wrappedBasic = underlyingComet.userBasic(address(this));
         basic.baseTrackingIndex = wrappedBasic.baseTrackingIndex;
 
@@ -98,7 +98,6 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
         baseSupplyIndex = accruedSupplyIndex(baseSupplyIndex, block.timestamp - lastAccrualTime);
         UserBasic memory basic = userBasic[account];
         return presentValueSupply(baseSupplyIndex, basic.principal);
-        // return (wrappedTokenAmount * underlyingExchangeRate()) / EXP_SCALE;
     }
 
     function accruedSupplyIndex(uint64 baseSupplyIndex, uint256 timeElapsed)
