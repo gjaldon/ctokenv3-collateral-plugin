@@ -4,12 +4,27 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /**
+ * @title IRewardable
+ * @notice A simple interface mixin to support claiming of rewards.
+ */
+interface IRewardable {
+    /// Emitted whenever a reward token balance is claimed
+    event RewardsClaimed(IERC20 indexed erc20, uint256 indexed amount);
+
+    /// Claim rewards earned by holding a balance of the ERC20 token
+    /// Must emit `RewardsClaimed` for each token rewards are claimed for
+    /// @dev delegatecall: there be dragons here!
+    /// @custom:interaction
+    function claimRewards() external;
+}
+
+/**
  * @title IAsset
  * @notice Supertype. Any token that interacts with our system must be wrapped in an asset,
  * whether it is used as RToken backing or not. Any token that can report a price in the UoA
  * is eligible to be an asset.
  */
-interface IAsset {
+interface IAsset is IRewardable {
     /// Can return 0, can revert
     /// Shortcut for price(false)
     /// @return {UoA/tok} The current price(), without considering fallback prices
@@ -36,18 +51,6 @@ interface IAsset {
 
     /// @param {UoA} The max trade volume, in UoA
     function maxTradeVolume() external view returns (uint192);
-
-    // ==== Rewards ====
-
-    /// Get the message needed to call in order to claim rewards for holding this asset.
-    /// Returns zero values if there is no reward function to call.
-    /// @return _to The address to send the call to
-    /// @return _calldata The calldata to send
-    function getClaimCalldata() external view returns (address _to, bytes memory _calldata);
-
-    /// The ERC20 token address that this Asset's rewards are paid in.
-    /// If there are no rewards, will return a zero value.
-    function rewardERC20() external view returns (IERC20 reward);
 }
 
 /// CollateralStatus must obey a linear ordering. That is:
@@ -90,7 +93,4 @@ interface ICollateral is IAsset {
 
     /// @return {target/ref} Quantity of whole target units per whole reference unit in the peg
     function targetPerRef() external view returns (uint192);
-
-    /// @return {UoA/target} The price of the target unit in UoA (usually this is {UoA/UoA} = 1)
-    function pricePerTarget() external view returns (uint192);
 }

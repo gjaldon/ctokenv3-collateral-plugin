@@ -131,12 +131,6 @@ contract CTokenV3Collateral is ICollateral {
         }
     }
 
-    /// @dev {UoA} is USD and {target} is USD so this is 1:1.
-    /// @return {UoA/target} The price of a target unit in UoA
-    function pricePerTarget() public pure returns (uint192) {
-        return FIX_ONE;
-    }
-
     /// @return {target/ref} Quantity of whole target units per whole reference unit in the peg
     function targetPerRef() public pure returns (uint192) {
         return FIX_ONE;
