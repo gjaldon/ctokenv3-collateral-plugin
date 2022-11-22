@@ -41,7 +41,7 @@ describe('Wrapped CUSDCv3', () => {
       expect(await usdc.balanceOf(bob.address)).to.equal(0)
 
       await cusdcV3AsB.allow(wcusdcV3.address, true)
-      await wcusdcV3AsB.depositFor(don.address, ethers.constants.MaxUint256)
+      await wcusdcV3AsB.depositTo(don.address, ethers.constants.MaxUint256)
 
       expect(await wcusdcV3.balanceOf(bob.address)).to.eq(0)
       expect(await wcusdcV3.balanceOf(don.address)).to.be.closeTo(balance, 50)
@@ -85,7 +85,7 @@ describe('Wrapped CUSDCv3', () => {
       expect(await usdc.balanceOf(bob.address)).to.equal(0)
 
       await cusdcV3AsB.allow(wcusdcV3.address, true)
-      await wcusdcV3AsB.depositFor(bob.address, ethers.constants.MaxUint256)
+      await wcusdcV3AsB.depositTo(bob.address, ethers.constants.MaxUint256)
       expect(await cusdcV3.balanceOf(bob.address)).to.equal(0)
       expect(await usdc.balanceOf(bob.address)).to.equal(0)
       expect(await wcusdcV3.balanceOf(bob.address)).to.be.closeTo(balance, 100)
@@ -106,7 +106,7 @@ describe('Wrapped CUSDCv3', () => {
       expect(await usdc.balanceOf(bob.address)).to.equal(0)
 
       await cusdcV3AsB.allow(wcusdcV3.address, true)
-      await wcusdcV3AsB.depositFor(bob.address, 10000e6)
+      await wcusdcV3AsB.depositTo(bob.address, 10000e6)
       expect(await cusdcV3.balanceOf(bob.address)).to.be.closeTo(10000e6, 100)
       expect(await usdc.balanceOf(bob.address)).to.equal(0)
       expect(await wcusdcV3.balanceOf(bob.address)).to.equal(10000e6)
@@ -135,13 +135,13 @@ describe('Wrapped CUSDCv3', () => {
       await cusdcV3AsB.supply(usdc.address, balance)
       await cusdcV3AsB.allow(wcusdcV3.address, true)
 
-      await wcusdcV3AsB.depositFor(bob.address, 10000e6)
+      await wcusdcV3AsB.depositTo(bob.address, 10000e6)
       await time.increase(1000)
-      await wcusdcV3AsB.depositFor(bob.address, 10000e6)
+      await wcusdcV3AsB.depositTo(bob.address, 10000e6)
       await time.increase(1000)
-      await wcusdcV3AsB.depositFor(bob.address, 10000e6)
+      await wcusdcV3AsB.depositTo(bob.address, 10000e6)
       await time.increase(1000)
-      await wcusdcV3AsB.depositFor(bob.address, 10000e6)
+      await wcusdcV3AsB.depositTo(bob.address, 10000e6)
 
       expect(await wcusdcV3.balanceOf(bob.address)).to.equal(40000e6)
       expect(await wcusdcV3.underlyingBalanceOf(bob.address)).to.be.equal(

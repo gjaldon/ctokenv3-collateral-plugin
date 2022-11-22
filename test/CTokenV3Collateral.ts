@@ -82,7 +82,7 @@ describe('prices', () => {
     expect(await usdc.balanceOf(bob.address)).to.equal(0)
 
     await cusdcV3AsB.allow(wcusdcV3.address, true)
-    await wcusdcV3AsB.depositFor(bob.address, ethers.constants.MaxUint256)
+    await wcusdcV3AsB.depositTo(bob.address, ethers.constants.MaxUint256)
     expect(await collateral.refPerTok()).to.not.equal(prevRefPerTok)
     expect(await collateral.strictPrice()).to.not.equal(prevPrice)
   })

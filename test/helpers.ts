@@ -143,5 +143,5 @@ export const mintWcUSDC = async (
   await usdc.connect(account).approve(cusdc.address, ethers.constants.MaxUint256)
   await cusdc.connect(account).supply(usdc.address, amount)
   await cusdc.connect(account).allow(wcusdc.address, true)
-  await wcusdc.connect(account).depositFor(account.address, amount)
+  await wcusdc.connect(account).depositTo(account.address, amount)
 }

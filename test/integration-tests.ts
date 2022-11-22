@@ -149,7 +149,7 @@ describe('integration tests', () => {
     await cusdcV3AsB.supply(usdc.address, exp(20000, 6))
     expect(await cusdcV3.balanceOf(bob.address)).to.be.closeTo(20000e6, 100e6)
     await cusdcV3AsB.allow(wcusdcV3.address, true)
-    await wcusdcV3AsB.depositFor(bob.address, ethers.constants.MaxUint256)
+    await wcusdcV3AsB.depositTo(bob.address, ethers.constants.MaxUint256)
     await wcusdcV3AsB.approve(rToken.address, ethers.constants.MaxUint256)
     expect(await rToken.connect(bob).issue(issueAmount)).to.emit(rToken, 'Issuance')
     expect(await rToken.balanceOf(bob.address)).to.equal(issueAmount)
@@ -183,7 +183,7 @@ describe('integration tests', () => {
     await cusdcV3AsB.supply(usdc.address, initialBal)
     expect(await cusdcV3.balanceOf(bob.address)).to.be.closeTo(initialBal, 100e6)
     await cusdcV3AsB.allow(wcusdcV3.address, true)
-    await wcusdcV3AsB.depositFor(bob.address, ethers.constants.MaxUint256)
+    await wcusdcV3AsB.depositTo(bob.address, ethers.constants.MaxUint256)
     await wcusdcV3AsB.approve(rToken.address, ethers.constants.MaxUint256)
 
     // Check rToken balance

@@ -58,7 +58,7 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
     /**
      * @dev Allow a user to deposit underlying tokens and mint the corresponding number of wrapped tokens.
      */
-    function depositFor(address account, uint256 amount) external {
+    function depositTo(address account, uint256 amount) external {
         _deposit(msg.sender, msg.sender, account, amount);
     }
 
