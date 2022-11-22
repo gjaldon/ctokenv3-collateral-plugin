@@ -8,12 +8,13 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "reserve/contracts/plugins/assets/OracleLib.sol";
 import "reserve/contracts/libraries/Fixed.sol";
+import "hardhat/console.sol";
 
 contract CTokenV3Collateral is ICollateral {
     struct Configuration {
         AggregatorV3Interface chainlinkFeed;
         IERC20Metadata erc20;
-        IERC20Metadata rewardERC20;
+        IERC20 rewardERC20;
         address rewardsAddr;
         bytes32 targetName;
         uint48 oracleTimeout;

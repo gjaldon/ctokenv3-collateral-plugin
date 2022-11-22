@@ -304,7 +304,6 @@ interface CollateralOpts {
   erc20?: string
   rewardERC20?: string
   rewardsAddr?: string
-  underlying?: string
   targetName?: string
   oracleTimeout?: bigint
   fallbackPrice?: bigint
@@ -318,7 +317,6 @@ const defaultCollateralOpts = {
   erc20: CUSDC_V3, // This will be replaced by the Wrapped CUSDC
   rewardERC20: COMP,
   rewardsAddr: REWARDS,
-  underlying: CUSDC_V3,
   targetName: ethers.utils.formatBytes32String('USD'),
   oracleTimeout: ORACLE_TIMEOUT,
   fallbackPrice: FIX_ONE,

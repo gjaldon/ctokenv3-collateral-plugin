@@ -16,7 +16,6 @@ import {
   mintWcUSDC,
 } from './helpers'
 import { makeReserveProtocol, deployCollateral } from './fixtures'
-import { ICometRewards } from '../typechain-types'
 
 describe('integration tests', () => {
   before(resetFork)
