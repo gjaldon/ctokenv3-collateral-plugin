@@ -189,7 +189,7 @@ describe('Wrapped CUSDCv3', () => {
 
       await expect(
         wcusdcV3.connect(charles).withdrawFrom(bob.address, don.address, 20000e6)
-      ).to.be.revertedWith('user not authorized')
+      ).to.be.revertedWithCustomError(wcusdcV3, 'Unauthorized')
 
       await wcusdcV3AsB.allow(charles.address, true)
       await wcusdcV3.connect(charles).withdrawFrom(bob.address, don.address, 20000e6)
@@ -250,7 +250,7 @@ describe('Wrapped CUSDCv3', () => {
 
       await expect(
         wcusdcV3.connect(bob).transferFrom(don.address, bob.address, exp(10000, 6))
-      ).to.be.revertedWith('ERC20: insufficient allowance')
+      ).to.be.revertedWithCustomError(wcusdcV3, 'Unauthorized')
     })
 
     it('updates accruals and principals in sender and receiver', async () => {

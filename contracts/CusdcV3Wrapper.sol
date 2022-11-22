@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.15;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./vendor/CometInterface.sol";
+import "./ERC20.sol";
 import "./ICometRewards.sol";
 import "./CometHelpers.sol";
 import "hardhat/console.sol";
@@ -26,7 +26,6 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
 
     mapping(address => UserBasic) public userBasic;
     mapping(address => uint256) public rewardsClaimed;
-    mapping(address => mapping(address => bool)) public isAllowed;
 
     event RewardClaimed(
         address indexed src,
@@ -76,7 +75,7 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
         address dst,
         uint256 amount
     ) internal {
-        require(hasPermission(from, operator), "user not authorized");
+        if (!hasPermission(from, operator)) revert Unauthorized();
 
         underlyingComet.accrueAccount(address(this));
         uint256 mintAmount;
@@ -131,7 +130,7 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
         address to,
         uint256 amount
     ) internal {
-        require(hasPermission(src, operator), "user not authorized");
+        if (!hasPermission(src, operator)) revert Unauthorized();
 
         underlyingComet.accrueAccount(address(this));
         uint256 balance = balanceOf(src);
