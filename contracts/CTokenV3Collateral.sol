@@ -152,19 +152,11 @@ contract CTokenV3Collateral is ICollateral {
         return shiftl_toFix(erc20.balanceOf(account), -int8(erc20Decimals));
     }
 
-    /// Get the message needed to call in order to claim rewards for holding this asset.
-    /// @dev Rewards are COMP tokens that will be claimed from the rewards address.
-    ///  This automatically accrues account so no need to accrue from `refresh()`.
-    /// @return _to The address to send the call to
-    /// @return _cd The calldata to send
-    function getClaimCalldata() external view returns (address _to, bytes memory _cd) {
-        _to = rewardsAddr;
-        _cd = abi.encodeWithSignature(
-            "function claim(address, address, bool)",
-            address(erc20),
-            msg.sender,
-            true
-        );
+    function claimRewards() external {
+        IERC20 comp = rewardERC20;
+        uint256 oldBal = comp.balanceOf(address(this));
+        ICusdcV3Wrapper(address(erc20)).claim(address(this));
+        emit RewardsClaimed(comp, comp.balanceOf(address(this)) - oldBal);
     }
 
     // === Helpers ===
