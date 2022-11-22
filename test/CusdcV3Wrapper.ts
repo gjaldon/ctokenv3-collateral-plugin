@@ -178,20 +178,32 @@ describe('Wrapped CUSDCv3', () => {
   })
 
   describe('accrueAccount', () => {
-    // TODO: test that accrue account updates both account in Wrapped Comet and contract balance in Comet
     it('accrues rewards over time', async () => {
       const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
-      const usdcAsB = usdc.connect(bob)
-      const cusdcV3AsB = cusdcV3.connect(bob)
 
       await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
-      await allocateUSDC(bob.address, exp(20000, 6))
-      await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
-      await cusdcV3AsB.supply(usdc.address, exp(20000, 6))
+      expect(await wcusdcV3.baseTrackingAccrued(bob.address)).to.eq(0)
+      await enableRewardsAccrual(cusdcV3)
+      await time.increase(1000)
+
+      await wcusdcV3.accrueAccount(bob.address)
+      expect(await wcusdcV3.baseTrackingAccrued(bob.address)).to.be.gt(0)
+      expect(await wcusdcV3.underlyingBalanceOf(bob.address)).to.eq(
+        await cusdcV3.balanceOf(wcusdcV3.address)
+      )
     })
 
-    // TODO: test that accruals only happen when accruals are enabled in Comet
+    it('does not accrue when accruals are not enabled in Comet', async () => {
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
+      const [_, bob] = await ethers.getSigners()
+
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+      expect(await wcusdcV3.baseTrackingAccrued(bob.address)).to.eq(0)
+
+      await time.increase(1000)
+      expect(await wcusdcV3.baseTrackingAccrued(bob.address)).to.eq(0)
+    })
   })
 
   describe('underlying balance', () => {
