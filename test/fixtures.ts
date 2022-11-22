@@ -53,6 +53,7 @@ import {
 } from '../typechain-types'
 
 const RSR_PRICE_FEED = '0x759bBC1be8F90eE6457C44abc7d443842a976d02'
+const COMP_PRICE_FEED = '0xdbd020CAeF83eFd542f4De03e3cF0C28A4428bd5'
 const GNOSIS_EASY_AUCTION = '0x0b7fFc1f4AD541A4Ed16b40D8c37f0929158D101'
 
 interface GnosisFixture {
@@ -89,16 +90,15 @@ interface IImplementations {
 }
 
 export const makeReserveProtocol = async () => {
+  // Setup ERC20 mocks
+  const rsr = <ERC20Mock>await ethers.getContractAt('ERC20Mock', RSR)
+  const compToken = <ERC20Mock>await ethers.getContractAt('ERC20Mock', COMP)
+
   // Setup Assets
-  const compAsset = <Asset>await (
-    await ethers.getContractFactory('Asset')
-  ).deploy(
-    FIX_ONE,
-    '0xdbd020CAeF83eFd542f4De03e3cF0C28A4428bd5',
-    COMP,
-    ethers.constants.AddressZero, // also uncertain about this one
-    MAX_TRADE_VOL,
-    ORACLE_TIMEOUT
+  const compAsset = <Asset>(
+    await (
+      await ethers.getContractFactory('Asset')
+    ).deploy(FIX_ONE, COMP_PRICE_FEED, COMP, MAX_TRADE_VOL, ORACLE_TIMEOUT)
   )
 
   const rsrAsset = <Asset>await (
@@ -107,14 +107,9 @@ export const makeReserveProtocol = async () => {
     7n * 10n ** 15n, // 0.007
     RSR_PRICE_FEED,
     RSR,
-    ethers.constants.AddressZero,
     MAX_TRADE_VOL,
     ORACLE_TIMEOUT
   )
-
-  // Setup ERC20 mocks
-  const rsr = <ERC20Mock>await ethers.getContractAt('ERC20Mock', RSR)
-  const compToken = <ERC20Mock>await ethers.getContractAt('ERC20Mock', COMP)
 
   // Deploy implementations
   const MainImplFactory: ContractFactory = await ethers.getContractFactory('MainP1')

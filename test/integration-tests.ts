@@ -28,8 +28,6 @@ describe('integration tests', () => {
     expect(compToken.address).to.equal(COMP)
     expect(await compToken.decimals()).to.equal(18)
     expect(await compAsset.strictPrice()).to.be.closeTo(exp(51, 18), exp(5, 17)) // Close to $51 USD - Nov 2022
-    expect(await compAsset.getClaimCalldata()).to.eql([ethers.constants.AddressZero, '0x'])
-    expect(await compAsset.rewardERC20()).to.equal(ethers.constants.AddressZero)
     expect(await compAsset.maxTradeVolume()).to.equal(MAX_TRADE_VOL)
 
     // RSR Token
@@ -38,8 +36,6 @@ describe('integration tests', () => {
     expect(rsr.address).to.equal(RSR)
     expect(await rsr.decimals()).to.equal(18)
     expect(await rsrAsset.strictPrice()).to.be.closeTo(exp(645, 13), exp(5, 12)) // Close to $0.00645
-    expect(await rsrAsset.getClaimCalldata()).to.eql([ethers.constants.AddressZero, '0x'])
-    expect(await rsrAsset.rewardERC20()).to.equal(ethers.constants.AddressZero)
     expect(await rsrAsset.maxTradeVolume()).to.equal(MAX_TRADE_VOL)
   })
 
@@ -51,12 +47,8 @@ describe('integration tests', () => {
     expect(await collateral.targetName()).to.equal(ethers.utils.formatBytes32String('USD'))
     expect(await collateral.refPerTok()).to.equal(FIX_ONE)
     expect(await collateral.targetPerRef()).to.equal(FIX_ONE)
-    expect(await collateral.pricePerTarget()).to.equal(FIX_ONE)
     expect(await collateral.strictPrice()).to.be.closeTo(FIX_ONE, exp(5, 16)) // Should always be close to $1
 
-    const claimCallData: string[] = await collateral.getClaimCalldata()
-    expect(claimCallData[0]).to.eql(REWARDS)
-    expect(claimCallData[1]).to.not.be.empty
     expect(await collateral.rewardERC20()).to.equal(COMP)
     expect(await collateral.rewardsAddr()).to.equal(REWARDS)
     expect(await collateral.maxTradeVolume()).to.equal(MAX_TRADE_VOL)
