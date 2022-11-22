@@ -145,10 +145,6 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
         SafeERC20.safeTransfer(underlyingERC20, to, transferAmount);
     }
 
-    function hasPermission(address owner, address manager) public view returns (bool) {
-        return owner == manager || isAllowed[owner][manager];
-    }
-
     function _beforeTokenTransfer(
         address from,
         address to,
@@ -217,14 +213,6 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
 
             emit RewardClaimed(src, to, address(rewardERC20), owed);
         }
-    }
-
-    function allow(address account, bool isAllowed_) external {
-        isAllowed[msg.sender][account] = isAllowed_;
-    }
-
-    function claimAllowed(address owner, address spender) external view returns (bool) {
-        return isAllowed[owner][spender];
     }
 
     function getRewardOwed(address account) external returns (uint256) {

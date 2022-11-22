@@ -423,7 +423,7 @@ describe('Wrapped CUSDCv3', () => {
       )
 
       await wcusdcV3.connect(bob).allow(don.address, true)
-      expect(await wcusdcV3.claimAllowed(bob.address, don.address)).to.eq(true)
+      expect(await wcusdcV3.isAllowed(bob.address, don.address)).to.eq(true)
       await expect(wcusdcV3.connect(don).claimTo(bob.address, bob.address)).to.emit(
         wcusdcV3,
         'RewardClaimed'
