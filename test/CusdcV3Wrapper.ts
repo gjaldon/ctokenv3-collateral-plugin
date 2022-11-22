@@ -61,8 +61,9 @@ describe('Wrapped CUSDCv3', () => {
       await cusdcV3AsB.supply(usdc.address, 20000e6)
       expect(await usdc.balanceOf(bob.address)).to.equal(0)
 
+      expect(await wcusdcV3.balanceOf(charles.address)).to.eq(0)
       await cusdcV3AsB.allow(wcusdcV3.address, true)
-      await wcusdcV3AsB.connect(bob).approve(charles.address, ethers.constants.MaxUint256)
+      await wcusdcV3AsB.connect(bob).allow(don.address, true)
       await wcusdcV3
         .connect(don)
         .depositFrom(bob.address, charles.address, ethers.constants.MaxUint256)
@@ -151,23 +152,53 @@ describe('Wrapped CUSDCv3', () => {
   })
 
   describe('withdraw', () => {
-    it('withdraws all of underlying balance', async () => {
+    it('withdraws to own account', async () => {
       const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
       const wcusdcV3AsB = wcusdcV3.connect(bob)
 
       await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+      expect(await wcusdcV3AsB.withdraw(ethers.constants.MaxUint256)).to.changeTokenBalance(
+        wcusdcV3,
+        bob,
+        0
+      )
 
-      await time.increase(1000)
-      // Balance of Wrapped Comet should be less than Comet balance due to
-      // interest accrual of Comet.
-      const cusdcBalance = await wcusdcV3.underlyingBalanceOf(bob.address)
-      expect(await wcusdcV3.balanceOf(bob.address)).to.be.lessThan(cusdcBalance)
+      expect(await cusdcV3.balanceOf(bob.address)).to.be.closeTo(20000e6, 50)
+    })
 
-      await wcusdcV3AsB.withdrawTo(bob.address, ethers.constants.MaxUint256)
-      expect(await cusdcV3.balanceOf(wcusdcV3.address)).to.equal(0)
-      expect(await wcusdcV3.balanceOf(bob.address)).to.equal(0)
-      expect(await cusdcV3.balanceOf(bob.address)).to.be.closeTo(cusdcBalance, 50)
+    it('withdraws to a different account', async () => {
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
+      const [_, bob, don] = await ethers.getSigners()
+      const wcusdcV3AsB = wcusdcV3.connect(bob)
+
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+      await wcusdcV3AsB.withdrawTo(don.address, ethers.constants.MaxUint256)
+
+      expect(await cusdcV3.balanceOf(don.address)).to.be.closeTo(20000e6, 50)
+      expect(await cusdcV3.balanceOf(bob.address)).to.be.closeTo(0, 50)
+      expect(await wcusdcV3.balanceOf(bob.address)).to.eq(0)
+    })
+
+    it('withdraws from a different account', async () => {
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
+      const [_, bob, charles, don] = await ethers.getSigners()
+      const wcusdcV3AsB = wcusdcV3.connect(bob)
+
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+
+      await expect(
+        wcusdcV3.connect(charles).withdrawFrom(bob.address, don.address, 20000e6)
+      ).to.be.revertedWith('user not authorized')
+
+      await wcusdcV3AsB.allow(charles.address, true)
+      await wcusdcV3.connect(charles).withdrawFrom(bob.address, don.address, 20000e6)
+
+      expect(await cusdcV3.balanceOf(don.address)).be.closeTo(20000e6, 50)
+      expect(await cusdcV3.balanceOf(bob.address)).be.closeTo(0, 50)
+      expect(await cusdcV3.balanceOf(charles.address)).to.eq(0)
+
+      expect(await wcusdcV3.balanceOf(bob.address)).to.eq(0)
     })
 
     it('withdraws all underlying balance via multiple withdrawals', async () => {
@@ -178,10 +209,10 @@ describe('Wrapped CUSDCv3', () => {
       await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
 
       await time.increase(1000)
-      await wcusdcV3AsB.withdrawTo(bob.address, exp(10000, 6))
-      expect(await wcusdcV3.balanceOf(bob.address)).to.equal(exp(10000, 6))
+      await wcusdcV3AsB.withdraw(10000e6)
+      expect(await wcusdcV3.balanceOf(bob.address)).to.equal(10000e6)
       await time.increase(1000)
-      await wcusdcV3AsB.withdrawTo(bob.address, exp(10000, 6))
+      await wcusdcV3AsB.withdraw(10000e6)
       expect(await wcusdcV3.balanceOf(bob.address)).to.equal(0)
     })
 
@@ -191,12 +222,37 @@ describe('Wrapped CUSDCv3', () => {
       const wcusdcV3AsB = wcusdcV3.connect(bob)
 
       await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
-      await wcusdcV3AsB.withdrawTo(bob.address, 0)
+      await wcusdcV3AsB.withdraw(0)
       expect(await wcusdcV3.balanceOf(bob.address)).to.equal(exp(20000, 6))
+    })
+
+    it('updates and principals in withdrawn account', async () => {
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
+      const [_, bob] = await ethers.getSigners()
+      const wcusdcV3AsB = wcusdcV3.connect(bob)
+
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+      await wcusdcV3AsB.withdraw(exp(5000, 6))
+
+      expect(await wcusdcV3.balanceOf(bob.address)).to.equal(exp(15000, 6))
+      const bobsCusdc = await wcusdcV3.underlyingBalanceOf(bob.address)
+      expect(bobsCusdc).to.be.gt(0)
+      expect(bobsCusdc).to.eq(await cusdcV3.balanceOf(wcusdcV3.address))
     })
   })
 
   describe('transfer', () => {
+    it('does not transfer without approval', async () => {
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
+      const [_, bob, don] = await ethers.getSigners()
+
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+
+      await expect(
+        wcusdcV3.connect(bob).transferFrom(don.address, bob.address, exp(10000, 6))
+      ).to.be.revertedWith('ERC20: insufficient allowance')
+    })
+
     it('updates accruals and principals in sender and receiver', async () => {
       const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
       const [_, bob, don] = await ethers.getSigners()
@@ -366,7 +422,7 @@ describe('Wrapped CUSDCv3', () => {
         'can not claim rewards'
       )
 
-      await wcusdcV3.connect(bob).allowClaiming(don.address, true)
+      await wcusdcV3.connect(bob).allow(don.address, true)
       expect(await wcusdcV3.claimAllowed(bob.address, don.address)).to.eq(true)
       await expect(wcusdcV3.connect(don).claimTo(bob.address, bob.address)).to.emit(
         wcusdcV3,

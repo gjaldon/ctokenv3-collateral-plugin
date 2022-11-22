@@ -26,7 +26,7 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
 
     mapping(address => UserBasic) public userBasic;
     mapping(address => uint256) public rewardsClaimed;
-    mapping(address => mapping(address => bool)) public rewardsIsAllowed;
+    mapping(address => mapping(address => bool)) public isAllowed;
 
     event RewardClaimed(
         address indexed src,
@@ -76,6 +76,8 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
         address dst,
         uint256 amount
     ) internal {
+        require(hasPermission(from, operator), "user not authorized");
+
         underlyingComet.accrueAccount(address(this));
         uint256 mintAmount;
 
@@ -103,24 +105,49 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
         _mint(dst, mintAmount);
     }
 
+    function withdraw(uint256 amount) external {
+        _withdraw(msg.sender, msg.sender, msg.sender, amount);
+    }
+
+    function withdrawTo(address to, uint256 amount) external {
+        _withdraw(msg.sender, msg.sender, to, amount);
+    }
+
+    function withdrawFrom(
+        address src,
+        address to,
+        uint256 amount
+    ) external {
+        _withdraw(msg.sender, src, to, amount);
+    }
+
     /**
      * @dev Allow a user to burn a number of wrapped tokens and withdraw the corresponding number of underlying tokens.
      * @param amount The amount of Wrapped cUSDC being withdrawn.
      */
-    function withdrawTo(address account, uint256 amount) public virtual returns (bool) {
+    function _withdraw(
+        address operator,
+        address src,
+        address to,
+        uint256 amount
+    ) internal {
+        require(hasPermission(src, operator), "user not authorized");
+
         underlyingComet.accrueAccount(address(this));
-        uint256 balance = balanceOf(account);
+        uint256 balance = balanceOf(src);
         uint256 _underlyingExchangeRate = underlyingExchangeRate();
         uint256 burnAmount = (amount > balance) ? balance : amount;
         uint256 transferAmount = (burnAmount * _underlyingExchangeRate) / EXP_SCALE;
 
-        UserBasic memory basic = userBasic[account];
-        userBasic[account] = updatedAccountIndices(basic, -signed256(transferAmount));
+        UserBasic memory basic = userBasic[src];
+        userBasic[src] = updatedAccountIndices(basic, -signed256(transferAmount));
 
-        _burn(msg.sender, burnAmount);
-        SafeERC20.safeTransfer(underlyingERC20, account, transferAmount);
+        _burn(src, burnAmount);
+        SafeERC20.safeTransfer(underlyingERC20, to, transferAmount);
+    }
 
-        return true;
+    function hasPermission(address owner, address manager) public view returns (bool) {
+        return owner == manager || isAllowed[owner][manager];
     }
 
     function _beforeTokenTransfer(
@@ -176,7 +203,7 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
 
     function claimTo(address src, address to) external {
         address sender = msg.sender;
-        require(src == sender || rewardsIsAllowed[src][sender], "can not claim rewards");
+        require(hasPermission(src, sender), "can not claim rewards");
 
         accrueAccount(src);
         uint256 claimed = rewardsClaimed[src];
@@ -193,12 +220,12 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
         }
     }
 
-    function allowClaiming(address account, bool isAllowed) external {
-        rewardsIsAllowed[msg.sender][account] = isAllowed;
+    function allow(address account, bool isAllowed_) external {
+        isAllowed[msg.sender][account] = isAllowed_;
     }
 
     function claimAllowed(address owner, address spender) external view returns (bool) {
-        return rewardsIsAllowed[owner][spender];
+        return isAllowed[owner][spender];
     }
 
     function getRewardOwed(address account) external returns (uint256) {
