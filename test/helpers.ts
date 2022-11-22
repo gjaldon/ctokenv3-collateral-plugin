@@ -7,7 +7,6 @@ import {
   ICometProxyAdmin,
   CusdcV3Wrapper,
 } from '../typechain-types'
-import { string } from 'hardhat/internal/core/params/argumentTypes'
 
 // Mainnet Addresses
 export const RSR = '0x320623b8e4ff03373931769a31fc52a4e78b5d70'

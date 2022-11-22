@@ -147,7 +147,7 @@ describe('status', () => {
     expect(await collateral.whenDefault()).to.equal(ethers.constants.MaxUint256)
 
     // Depeg USDC:USD - Reducing price by 20% from 1 to 0.8
-    const updateAnswerTx = await chainlinkFeed.updateAnswer(8n * 10n ** 5n)
+    const updateAnswerTx = await chainlinkFeed.updateAnswer(exp(8, 5))
     await updateAnswerTx.wait()
 
     // Force updates - Should update whenDefault and status
@@ -199,7 +199,7 @@ describe('status', () => {
       'InvalidMockV3Aggregator'
     )
     const invalidChainlinkFeed = <InvalidMockV3Aggregator>(
-      await InvalidMockV3AggregatorFactory.deploy(6, 1n * 10n ** 6n)
+      await InvalidMockV3AggregatorFactory.deploy(6, exp(1, 6))
     )
 
     const invalidCollateral = await deployCollateral({

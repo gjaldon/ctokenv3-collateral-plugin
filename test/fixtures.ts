@@ -101,14 +101,10 @@ export const makeReserveProtocol = async () => {
     ).deploy(FIX_ONE, COMP_PRICE_FEED, COMP, MAX_TRADE_VOL, ORACLE_TIMEOUT)
   )
 
-  const rsrAsset = <Asset>await (
-    await ethers.getContractFactory('Asset')
-  ).deploy(
-    7n * 10n ** 15n, // 0.007
-    RSR_PRICE_FEED,
-    RSR,
-    MAX_TRADE_VOL,
-    ORACLE_TIMEOUT
+  const rsrAsset = <Asset>(
+    await (
+      await ethers.getContractFactory('Asset')
+    ).deploy(exp(7, 15), RSR_PRICE_FEED, RSR, MAX_TRADE_VOL, ORACLE_TIMEOUT)
   )
 
   // Deploy implementations
@@ -202,20 +198,20 @@ export const makeReserveProtocol = async () => {
       rTokenDist: 40n, // 2/5 RToken
       rsrDist: 60n, // 3/5 RSR
     },
-    minTradeVolume: 1n * 10n ** 22n, // $10k
-    rTokenMaxTradeVolume: 1n * 10n ** 24n, // $1M
+    minTradeVolume: exp(1, 22), // $10k
+    rTokenMaxTradeVolume: exp(1, 24), // $1M
     shortFreeze: 259200n, // 3 days
     longFreeze: 2592000n, // 30 days
     rewardPeriod: 604800n, // 1 week
-    rewardRatio: 2284n * 10n ** 13n, // approx. half life of 30 pay periods
+    rewardRatio: exp(2284, 13), // approx. half life of 30 pay periods
     unstakingDelay: 1209600n, // 2 weeks
     tradingDelay: 0n, // (the delay _after_ default has been confirmed)
     auctionLength: 900n, // 15 minutes
-    backingBuffer: 1n * 10n ** 14n, // 0.01%
-    maxTradeSlippage: 1n * 10n * 16n, // 1%
-    issuanceRate: 25n * 10n ** 13n, // 0.025% per block or ~0.1% per minute
-    scalingRedemptionRate: 5n * 10n ** 16n, // 5%
-    redemptionRateFloor: 1000000n * 10n * 18n, // 1M RToken
+    backingBuffer: exp(1, 14), // 0.01%
+    maxTradeSlippage: exp(1, 16), // 1%
+    issuanceRate: exp(25, 13), // 0.025% per block or ~0.1% per minute
+    scalingRedemptionRate: exp(5, 16), // 5%
+    redemptionRateFloor: exp(1000000, 18), // 1M RToken
   }
   // Deploy actual contracts
   const [owner] = await ethers.getSigners()
