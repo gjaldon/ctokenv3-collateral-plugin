@@ -9,6 +9,68 @@ describe('Wrapped CUSDCv3', () => {
   beforeEach(resetFork)
 
   describe('deposit', () => {
+    it('deposit to own account', async () => {
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
+      const [_, bob, don] = await ethers.getSigners()
+      const usdcAsB = usdc.connect(bob)
+      const cusdcV3AsB = cusdcV3.connect(bob)
+      const wcusdcV3AsB = wcusdcV3.connect(bob)
+
+      const balance = 20000e6
+      await allocateUSDC(bob.address, balance)
+      await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
+      await cusdcV3AsB.supply(usdc.address, 20000e6)
+      expect(await usdc.balanceOf(bob.address)).to.equal(0)
+
+      await cusdcV3AsB.allow(wcusdcV3.address, true)
+      await wcusdcV3AsB.deposit(ethers.constants.MaxUint256)
+      expect(await wcusdcV3.balanceOf(bob.address)).to.be.closeTo(balance, 50)
+    })
+
+    it('deposits for someone else', async () => {
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
+      const [_, bob, don] = await ethers.getSigners()
+      const usdcAsB = usdc.connect(bob)
+      const cusdcV3AsB = cusdcV3.connect(bob)
+      const wcusdcV3AsB = wcusdcV3.connect(bob)
+
+      const balance = 20000e6
+      await allocateUSDC(bob.address, balance)
+      await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
+      await cusdcV3AsB.supply(usdc.address, 20000e6)
+      expect(await usdc.balanceOf(bob.address)).to.equal(0)
+
+      await cusdcV3AsB.allow(wcusdcV3.address, true)
+      await wcusdcV3AsB.depositFor(don.address, ethers.constants.MaxUint256)
+
+      expect(await wcusdcV3.balanceOf(bob.address)).to.eq(0)
+      expect(await wcusdcV3.balanceOf(don.address)).to.be.closeTo(balance, 50)
+    })
+
+    it('deposits from a different account', async () => {
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
+      const [_, bob, charles, don] = await ethers.getSigners()
+
+      const usdcAsB = usdc.connect(bob)
+      const cusdcV3AsB = cusdcV3.connect(bob)
+      const wcusdcV3AsB = wcusdcV3.connect(bob)
+
+      const balance = 20000e6
+      await allocateUSDC(bob.address, balance)
+      await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
+      await cusdcV3AsB.supply(usdc.address, 20000e6)
+      expect(await usdc.balanceOf(bob.address)).to.equal(0)
+
+      await cusdcV3AsB.allow(wcusdcV3.address, true)
+      await wcusdcV3AsB.connect(bob).approve(charles.address, ethers.constants.MaxUint256)
+      await wcusdcV3
+        .connect(don)
+        .depositFrom(bob.address, charles.address, ethers.constants.MaxUint256)
+
+      expect(await wcusdcV3.balanceOf(bob.address)).to.eq(0)
+      expect(await wcusdcV3.balanceOf(charles.address)).to.be.closeTo(balance, 50)
+    })
+
     it('deposits max uint256 and mints only available amount of wrapped cusdc', async () => {
       const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()

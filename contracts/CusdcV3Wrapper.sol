@@ -51,18 +51,39 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
         return 6;
     }
 
+    function deposit(uint256 amount) external {
+        _deposit(msg.sender, msg.sender, msg.sender, amount);
+    }
+
     /**
      * @dev Allow a user to deposit underlying tokens and mint the corresponding number of wrapped tokens.
      */
-    function depositFor(address account, uint256 amount) public virtual returns (bool) {
+    function depositFor(address account, uint256 amount) external {
+        _deposit(msg.sender, msg.sender, account, amount);
+    }
+
+    function depositFrom(
+        address from,
+        address dst,
+        uint256 amount
+    ) external {
+        _deposit(msg.sender, from, dst, amount);
+    }
+
+    function _deposit(
+        address operator,
+        address from,
+        address dst,
+        uint256 amount
+    ) internal {
         underlyingComet.accrueAccount(address(this));
         uint256 mintAmount;
 
-        UserBasic memory basic = userBasic[account];
-        uint256 underlyingBalance = underlyingERC20.balanceOf(account);
+        UserBasic memory basic = userBasic[dst];
+        uint256 underlyingBalance = underlyingERC20.balanceOf(from);
         if (amount > underlyingBalance) {
             mintAmount = underlyingBalance;
-            CometInterface.UserBasic memory cometBasic = underlyingComet.userBasic(account);
+            CometInterface.UserBasic memory cometBasic = underlyingComet.userBasic(from);
             basic.principal += uint104(cometBasic.principal);
         } else {
             mintAmount = amount;
@@ -72,16 +93,14 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
             basic.principal = principalValueSupply(baseSupplyIndex, balance);
         }
 
-        SafeERC20.safeTransferFrom(underlyingERC20, _msgSender(), address(this), mintAmount);
+        SafeERC20.safeTransferFrom(underlyingERC20, from, address(this), mintAmount);
 
         // We use the this contract's baseTrackingIndex from Comet so we do not over-accrue user's rewards.
         CometInterface.UserBasic memory wrappedBasic = underlyingComet.userBasic(address(this));
         basic.baseTrackingIndex = wrappedBasic.baseTrackingIndex;
 
-        userBasic[account] = basic;
-        _mint(account, mintAmount);
-
-        return true;
+        userBasic[dst] = basic;
+        _mint(dst, mintAmount);
     }
 
     /**
@@ -98,7 +117,7 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
         UserBasic memory basic = userBasic[account];
         userBasic[account] = updatedAccountIndices(basic, -signed256(transferAmount));
 
-        _burn(_msgSender(), burnAmount);
+        _burn(msg.sender, burnAmount);
         SafeERC20.safeTransfer(underlyingERC20, account, transferAmount);
 
         return true;
@@ -156,7 +175,7 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
     }
 
     function claimTo(address src, address to) external {
-        address sender = _msgSender();
+        address sender = msg.sender;
         require(src == sender || rewardsIsAllowed[src][sender], "can not claim rewards");
 
         accrueAccount(src);
