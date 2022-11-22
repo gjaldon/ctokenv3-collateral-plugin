@@ -134,7 +134,51 @@ describe('Wrapped CUSDCv3', () => {
     })
   })
 
+  describe('transfer', () => {
+    it('updates accruals and principals in sender and receiver', async () => {
+      const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
+      const [_, bob, don] = await ethers.getSigners()
+
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, don, exp(20000, 6))
+
+      await enableRewardsAccrual(cusdcV3)
+      await time.increase(1000)
+
+      await wcusdcV3.accrueAccount(don.address)
+      await wcusdcV3.accrueAccount(bob.address)
+
+      // Don's rewards accrual should be less than Bob's because he deposited later
+      expect(await wcusdcV3.baseTrackingAccrued(don.address)).to.be.lt(
+        await wcusdcV3.baseTrackingAccrued(bob.address)
+      )
+
+      await expect(
+        wcusdcV3.connect(bob).transfer(don.address, exp(10000, 6))
+      ).to.changeTokenBalances(wcusdcV3, [bob, don], [-10000e6, 10000e6])
+
+      await time.increase(1000)
+      await wcusdcV3.accrueAccount(don.address)
+      await wcusdcV3.accrueAccount(bob.address)
+
+      expect(await wcusdcV3.baseTrackingAccrued(don.address)).to.be.gt(
+        await wcusdcV3.baseTrackingAccrued(bob.address)
+      )
+
+      // Balances are computed from principals so we are indirectly testing the accuracy
+      // of Bob's and Don's stored principals here.
+      const donsBalance = (await wcusdcV3.underlyingBalanceOf(don.address)).toBigInt()
+      const bobsBalance = (await wcusdcV3.underlyingBalanceOf(bob.address)).toBigInt()
+      expect(donsBalance).to.be.gt(bobsBalance)
+      const totalBalances = donsBalance + bobsBalance
+
+      // Rounding in favor of the Wrapped Token is happening here. Amount is negligible
+      expect(totalBalances).to.be.closeTo(await cusdcV3.balanceOf(wcusdcV3.address), 1)
+    })
+  })
+
   describe('accrueAccount', () => {
+    // TODO: test that accrue account updates both account in Wrapped Comet and contract balance in Comet
     it('accrues rewards over time', async () => {
       const { usdc, wcusdcV3, cusdcV3 } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
@@ -146,6 +190,8 @@ describe('Wrapped CUSDCv3', () => {
       await usdcAsB.approve(cusdcV3.address, ethers.constants.MaxUint256)
       await cusdcV3AsB.supply(usdc.address, exp(20000, 6))
     })
+
+    // TODO: test that accruals only happen when accruals are enabled in Comet
   })
 
   describe('underlying balance', () => {

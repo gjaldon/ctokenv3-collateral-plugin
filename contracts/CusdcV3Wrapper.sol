@@ -96,6 +96,24 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
         return true;
     }
 
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 amount
+    ) internal virtual override {
+        super._beforeTokenTransfer(from, to, amount);
+
+        if (from == address(0) || to == address(0)) {
+            return;
+        }
+
+        UserBasic memory fromBasic = userBasic[from];
+        userBasic[from] = updatedAccountIndices(fromBasic, -signed256(amount));
+
+        UserBasic memory toBasic = userBasic[to];
+        userBasic[to] = updatedAccountIndices(toBasic, signed256(amount));
+    }
+
     function underlyingBalanceOf(address account) public view returns (uint256) {
         if (balanceOf(account) == 0) {
             return 0;
