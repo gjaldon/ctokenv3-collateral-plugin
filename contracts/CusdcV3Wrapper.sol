@@ -26,6 +26,14 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
 
     mapping(address => UserBasic) public userBasic;
     mapping(address => uint256) public rewardsClaimed;
+    mapping(address => mapping(address => bool)) public rewardsIsAllowed;
+
+    event RewardClaimed(
+        address indexed src,
+        address indexed recipient,
+        address indexed token,
+        uint256 amount
+    );
 
     constructor(
         address cusdcv3,
@@ -147,18 +155,31 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
         return (underlyingERC20.balanceOf(address(this)) * EXP_SCALE) / totalSupply;
     }
 
-    function claim(address to) external {
-        accrueAccount(to);
-        uint256 claimed = rewardsClaimed[to];
-        uint256 accrued = userBasic[to].baseTrackingAccrued * RESCALE_FACTOR;
+    function claimTo(address src, address to) external {
+        address sender = _msgSender();
+        require(src == sender || rewardsIsAllowed[src][sender], "can not claim rewards");
+
+        accrueAccount(src);
+        uint256 claimed = rewardsClaimed[src];
+        uint256 accrued = userBasic[src].baseTrackingAccrued * RESCALE_FACTOR;
 
         if (accrued > claimed) {
             uint256 owed = accrued - claimed;
-            rewardsClaimed[to] = accrued;
+            rewardsClaimed[src] = accrued;
 
             rewardsAddr.claimTo(underlying, address(this), address(this), true);
             SafeERC20.safeTransfer(rewardERC20, to, owed);
+
+            emit RewardClaimed(src, to, address(rewardERC20), owed);
         }
+    }
+
+    function allowClaiming(address account, bool isAllowed) external {
+        rewardsIsAllowed[msg.sender][account] = isAllowed;
+    }
+
+    function claimAllowed(address owner, address spender) external view returns (bool) {
+        return rewardsIsAllowed[owner][spender];
     }
 
     function getRewardOwed(address account) external returns (uint256) {

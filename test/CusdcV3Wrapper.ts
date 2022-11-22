@@ -293,6 +293,25 @@ describe('Wrapped CUSDCv3', () => {
   })
 
   describe('claiming rewards', () => {
+    it('does not claim rewards when user has no permission', async () => {
+      const { wcusdcV3, cusdcV3, usdc } = await makewCSUDC()
+      const [_, bob, don] = await ethers.getSigners()
+
+      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+      await time.increase(1000)
+      await enableRewardsAccrual(cusdcV3)
+      await expect(wcusdcV3.connect(don).claimTo(bob.address, bob.address)).to.be.revertedWith(
+        'can not claim rewards'
+      )
+
+      await wcusdcV3.connect(bob).allowClaiming(don.address, true)
+      expect(await wcusdcV3.claimAllowed(bob.address, don.address)).to.eq(true)
+      await expect(wcusdcV3.connect(don).claimTo(bob.address, bob.address)).to.emit(
+        wcusdcV3,
+        'RewardClaimed'
+      )
+    })
+
     it('claims rewards and sends to claimer', async () => {
       const { wcusdcV3, cusdcV3, usdc } = await makewCSUDC()
       const [_, bob] = await ethers.getSigners()
@@ -302,7 +321,11 @@ describe('Wrapped CUSDCv3', () => {
       expect(await compToken.balanceOf(wcusdcV3.address)).to.equal(0)
       await time.increase(1000)
       await enableRewardsAccrual(cusdcV3)
-      await wcusdcV3.claim(bob.address)
+
+      await expect(wcusdcV3.connect(bob).claimTo(bob.address, bob.address)).to.emit(
+        wcusdcV3,
+        'RewardClaimed'
+      )
       expect(await compToken.balanceOf(bob.address)).to.be.greaterThan(0)
     })
 
@@ -322,8 +345,8 @@ describe('Wrapped CUSDCv3', () => {
       expect(await compToken.balanceOf(wcusdcV3.address)).to.equal(0)
 
       await network.provider.send('evm_setAutomine', [false])
-      await wcusdcV3.connect(bob).claim(bob.address)
-      await wcusdcV3.connect(don).claim(don.address)
+      await wcusdcV3.connect(bob).claimTo(bob.address, bob.address)
+      await wcusdcV3.connect(don).claimTo(don.address, don.address)
       await network.provider.send('evm_setAutomine', [true])
       await mine()
 
@@ -343,7 +366,7 @@ describe('Wrapped CUSDCv3', () => {
 
       await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
       await time.increase(1000)
-      await wcusdcV3.connect(bob).claim(bob.address)
+      await wcusdcV3.connect(bob).claimTo(bob.address, bob.address)
       expect(await compToken.balanceOf(bob.address)).to.equal(0)
     })
   })
@@ -441,7 +464,7 @@ describe('Wrapped CUSDCv3', () => {
         (await (await wcusdcV3.baseTrackingAccrued(bob.address)).toBigInt()) * exp(1, 12)
       expect(bobsReward).to.equal(accrued)
 
-      await wcusdcV3.connect(bob).claim(bob.address)
+      await wcusdcV3.connect(bob).claimTo(bob.address, bob.address)
       expect(await wcusdcV3.callStatic.getRewardOwed(bob.address)).to.equal(0)
 
       await time.increase(1000)

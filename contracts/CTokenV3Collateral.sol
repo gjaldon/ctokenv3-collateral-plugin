@@ -156,7 +156,7 @@ contract CTokenV3Collateral is ICollateral {
     function claimRewards() external {
         IERC20 comp = rewardERC20;
         uint256 oldBal = comp.balanceOf(address(this));
-        ICusdcV3Wrapper(address(erc20)).claim(address(this));
+        ICusdcV3Wrapper(address(erc20)).claimTo(address(this), address(this));
         emit RewardsClaimed(comp, comp.balanceOf(address(this)) - oldBal);
     }
 
