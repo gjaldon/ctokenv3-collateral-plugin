@@ -22,7 +22,7 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [
       {
-        version: '0.8.15',
+        version: '0.8.17',
         settings: {
           optimizer: { enabled: true, runs: 200 },
         },
@@ -40,6 +40,7 @@ const config: HardhatUserConfig = {
     ],
   },
   dependencyCompiler: {
+    keep: true, // Needed to be true for slither to work
     paths: [
       'reserve/contracts/plugins/assets/Asset.sol',
       'reserve/contracts/plugins/trading/GnosisTrade.sol',
