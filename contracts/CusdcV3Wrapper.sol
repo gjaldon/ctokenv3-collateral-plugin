@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.15;
+pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./vendor/CometInterface.sol";
@@ -8,7 +8,7 @@ import "./ICometRewards.sol";
 import "./CometHelpers.sol";
 import "hardhat/console.sol";
 
-contract CusdcV3Wrapper is ERC20, CometHelpers {
+contract CusdcV3Wrapper is WrappedERC20, CometHelpers {
     struct UserBasic {
         uint104 principal;
         uint64 baseTrackingAccrued;
@@ -38,7 +38,9 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
         address cusdcv3,
         address rewardsAddr_,
         address rewardERC20_
-    ) ERC20("Wrapped cUSDCv3", "wcUSDCv3") {
+    ) WrappedERC20("Wrapped cUSDCv3", "wcUSDCv3") {
+        if (cusdcv3 == address(0)) revert ZeroAddress();
+
         underlying = cusdcv3;
         rewardsAddr = ICometRewards(rewardsAddr_);
         rewardERC20 = IERC20(rewardERC20_);
@@ -94,14 +96,14 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
             basic.principal = principalValueSupply(baseSupplyIndex, balance);
         }
 
-        SafeERC20.safeTransferFrom(underlyingERC20, from, address(this), mintAmount);
-
         // We use the this contract's baseTrackingIndex from Comet so we do not over-accrue user's rewards.
         CometInterface.UserBasic memory wrappedBasic = underlyingComet.userBasic(address(this));
         basic.baseTrackingIndex = wrappedBasic.baseTrackingIndex;
 
         userBasic[dst] = basic;
         _mint(dst, mintAmount);
+
+        SafeERC20.safeTransferFrom(underlyingERC20, from, address(this), mintAmount);
     }
 
     function withdraw(uint256 amount) external {
@@ -189,11 +191,11 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
     }
 
     function underlyingExchangeRate() public view returns (uint256) {
-        uint256 totalSupply = totalSupply();
-        if (totalSupply == 0) {
+        uint256 totalSupply_ = totalSupply();
+        if (totalSupply_ == 0) {
             return EXP_SCALE;
         }
-        return (underlyingERC20.balanceOf(address(this)) * EXP_SCALE) / totalSupply;
+        return (underlyingERC20.balanceOf(address(this)) * EXP_SCALE) / totalSupply_;
     }
 
     function claimTo(address src, address to) external {
@@ -208,10 +210,9 @@ contract CusdcV3Wrapper is ERC20, CometHelpers {
             uint256 owed = accrued - claimed;
             rewardsClaimed[src] = accrued;
 
+            emit RewardClaimed(src, to, address(rewardERC20), owed);
             rewardsAddr.claimTo(underlying, address(this), address(this), true);
             SafeERC20.safeTransfer(rewardERC20, to, owed);
-
-            emit RewardClaimed(src, to, address(rewardERC20), owed);
         }
     }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts (last updated v4.7.0) (token/ERC20/ERC20.sol)
 
-pragma solidity ^0.8.0;
+pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -28,9 +28,10 @@ import "@openzeppelin/contracts/utils/Context.sol";
  * by listening to said events. Other implementations of the EIP may not emit
  * these events, as it isn't required by the specification.
  */
-contract ERC20 is Context, IERC20, IERC20Metadata {
+contract WrappedERC20 is Context, IERC20, IERC20Metadata {
     error BadAmount();
     error Unauthorized();
+    error ZeroAddress();
 
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => bool)) public isAllowed;
