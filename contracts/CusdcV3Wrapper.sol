@@ -6,7 +6,6 @@ import "./vendor/CometInterface.sol";
 import "./ERC20.sol";
 import "./ICometRewards.sol";
 import "./CometHelpers.sol";
-import "hardhat/console.sol";
 
 contract CusdcV3Wrapper is WrappedERC20, CometHelpers {
     struct UserBasic {
@@ -200,7 +199,7 @@ contract CusdcV3Wrapper is WrappedERC20, CometHelpers {
 
     function claimTo(address src, address to) external {
         address sender = msg.sender;
-        require(hasPermission(src, sender), "can not claim rewards");
+        if (!hasPermission(src, sender)) revert Unauthorized();
 
         accrueAccount(src);
         uint256 claimed = rewardsClaimed[src];

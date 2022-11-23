@@ -418,9 +418,9 @@ describe('Wrapped CUSDCv3', () => {
       await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
       await time.increase(1000)
       await enableRewardsAccrual(cusdcV3)
-      await expect(wcusdcV3.connect(don).claimTo(bob.address, bob.address)).to.be.revertedWith(
-        'can not claim rewards'
-      )
+      await expect(
+        wcusdcV3.connect(don).claimTo(bob.address, bob.address)
+      ).to.be.revertedWithCustomError(wcusdcV3, 'Unauthorized')
 
       await wcusdcV3.connect(bob).allow(don.address, true)
       expect(await wcusdcV3.isAllowed(bob.address, don.address)).to.eq(true)

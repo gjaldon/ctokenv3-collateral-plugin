@@ -32,6 +32,7 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
     error BadAmount();
     error Unauthorized();
     error ZeroAddress();
+    error ExceedsBalance(uint256 amount);
 
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => bool)) public isAllowed;
@@ -194,13 +195,13 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
         address to,
         uint256 amount
     ) internal virtual {
-        require(from != address(0), "ERC20: transfer from the zero address");
-        require(to != address(0), "ERC20: transfer to the zero address");
+        if (from == address(0)) revert ZeroAddress();
+        if (to == address(0)) revert ZeroAddress();
 
         _beforeTokenTransfer(from, to, amount);
 
         uint256 fromBalance = _balances[from];
-        require(fromBalance >= amount, "ERC20: transfer amount exceeds balance");
+        if (amount > fromBalance) revert ExceedsBalance(amount);
         unchecked {
             _balances[from] = fromBalance - amount;
         }
@@ -221,7 +222,7 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
      * - `account` cannot be the zero address.
      */
     function _mint(address account, uint256 amount) internal virtual {
-        require(account != address(0), "ERC20: mint to the zero address");
+        if (account == address(0)) revert ZeroAddress();
 
         _beforeTokenTransfer(address(0), account, amount);
 
@@ -244,12 +245,12 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
      * - `account` must have at least `amount` tokens.
      */
     function _burn(address account, uint256 amount) internal virtual {
-        require(account != address(0), "ERC20: burn from the zero address");
+        if (account == address(0)) revert ZeroAddress();
 
         _beforeTokenTransfer(account, address(0), amount);
 
         uint256 accountBalance = _balances[account];
-        require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
+        if (amount > accountBalance) revert ExceedsBalance(amount);
         unchecked {
             _balances[account] = accountBalance - amount;
         }
@@ -282,8 +283,8 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
         address manager,
         bool isAllowed_
     ) internal {
-        require(owner != address(0), "ERC20: approve from the zero address");
-        require(manager != address(0), "ERC20: approve to the zero address");
+        if (owner == address(0)) revert ZeroAddress();
+        if (manager == address(0)) revert ZeroAddress();
 
         isAllowed[owner][manager] = isAllowed_;
         emit Approval(owner, manager, isAllowed_ ? type(uint256).max : 0);
