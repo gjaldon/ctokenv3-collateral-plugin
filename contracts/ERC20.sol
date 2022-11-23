@@ -1,34 +1,35 @@
 // SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts (last updated v4.7.0) (token/ERC20/ERC20.sol)
-
 pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import "@openzeppelin/contracts/utils/Context.sol";
 
 /**
  * @dev Implementation of the {IERC20} interface.
  *
- * This implementation is agnostic to the way tokens are created. This means
- * that a supply mechanism has to be added in a derived contract using {_mint}.
- * For a generic mechanism see {ERC20PresetMinterPauser}.
+ * This is a "soft-fork" of Open Zeppelin's ERC20 contract but with some notable
+ * changes including:
  *
- * TIP: For a detailed writeup see our guide
- * https://forum.zeppelin.solutions/t/how-to-implement-erc20-supply-mechanisms/226[How
- * to implement supply mechanisms].
+ *   - The allowance system is changed so that users are either allowed or not.
+ *   There are no approved/allowed amounts. `approve` function still exists to
+ *   adhere to the ERC-20 interface.
  *
- * We have followed general OpenZeppelin Contracts guidelines: functions revert
- * instead returning `false` on failure. This behavior is nonetheless
- * conventional and does not conflict with the expectations of ERC20
- * applications.
+ *   - Adds `allow` for easier authorization and is an easier-to-use alternative
+ *   to `approve`.
+ *
+ *   - All hooks are removed except for `_beforeTokenTransfer` in `_transfer`.
+ *   This is done to save on gas.
+ *
+ *   - All reverts use custom errors instead of strings. Another gas-optimization.
+ *
+ *   - Adds `hasPermission` which works the same as `allowance` and checks whether
+ *   a user is authorized to make balance transfers.
  *
  * Additionally, an {Approval} event is emitted on calls to {transferFrom}.
  * This allows applications to reconstruct the allowance for all accounts just
  * by listening to said events. Other implementations of the EIP may not emit
  * these events, as it isn't required by the specification.
  */
-contract WrappedERC20 is Context, IERC20, IERC20Metadata {
+contract WrappedERC20 is IERC20 {
     error BadAmount();
     error Unauthorized();
     error ZeroAddress();
@@ -59,7 +60,7 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
     /**
      * @dev Returns the name of the token.
      */
-    function name() public view virtual override returns (string memory) {
+    function name() public view virtual returns (string memory) {
         return _name;
     }
 
@@ -67,7 +68,7 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
      * @dev Returns the symbol of the token, usually a shorter version of the
      * name.
      */
-    function symbol() public view virtual override returns (string memory) {
+    function symbol() public view virtual returns (string memory) {
         return _symbol;
     }
 
@@ -84,7 +85,7 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
      * no way affects any of the arithmetic of the contract, including
      * {IERC20-balanceOf} and {IERC20-transfer}.
      */
-    function decimals() public view virtual override returns (uint8) {
+    function decimals() public view virtual returns (uint8) {
         return 18;
     }
 
@@ -111,8 +112,7 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
      * - the caller must have a balance of at least `amount`.
      */
     function transfer(address to, uint256 amount) public virtual override returns (bool) {
-        address owner = _msgSender();
-        _transfer(owner, to, amount);
+        _transfer(msg.sender, to, amount);
         return true;
     }
 
@@ -140,6 +140,7 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
      * - `spender` cannot be the zero address.
      */
     function approve(address spender, uint256 amount) public virtual override returns (bool) {
+        if (spender == address(0)) revert ZeroAddress();
         if (amount == type(uint256).max) {
             _allow(msg.sender, spender, true);
         } else if (amount == 0) {
@@ -163,8 +164,7 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
      *
      * - `from` and `to` cannot be the zero address.
      * - `from` must have a balance of at least `amount`.
-     * - the caller must have allowance for ``from``'s tokens of at least
-     * `amount`.
+     * - the caller must be authorized to transfer ``from``'s tokens
      */
     function transferFrom(
         address from,
@@ -208,8 +208,6 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
         _balances[to] += amount;
 
         emit Transfer(from, to, amount);
-
-        _afterTokenTransfer(from, to, amount);
     }
 
     /** @dev Creates `amount` tokens and assigns them to `account`, increasing
@@ -224,13 +222,9 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
     function _mint(address account, uint256 amount) internal virtual {
         if (account == address(0)) revert ZeroAddress();
 
-        _beforeTokenTransfer(address(0), account, amount);
-
         _totalSupply += amount;
         _balances[account] += amount;
         emit Transfer(address(0), account, amount);
-
-        _afterTokenTransfer(address(0), account, amount);
     }
 
     /**
@@ -247,8 +241,6 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
     function _burn(address account, uint256 amount) internal virtual {
         if (account == address(0)) revert ZeroAddress();
 
-        _beforeTokenTransfer(account, address(0), amount);
-
         uint256 accountBalance = _balances[account];
         if (amount > accountBalance) revert ExceedsBalance(amount);
         unchecked {
@@ -257,10 +249,18 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
         _totalSupply -= amount;
 
         emit Transfer(account, address(0), amount);
-
-        _afterTokenTransfer(account, address(0), amount);
     }
 
+    /**
+     * @dev Allow or disallow another address to withdraw, or transfer from the sender.
+     *
+     * Emits an {Approval} event.
+     *
+     * Requirements:
+     *
+     * - `owner` cannot be the zero address.
+     * - `manager` cannot be the zero address.
+     */
     function allow(address account, bool isAllowed_) external {
         _allow(msg.sender, account, isAllowed_);
     }
@@ -290,12 +290,15 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
         emit Approval(owner, manager, isAllowed_ ? type(uint256).max : 0);
     }
 
+    /**
+     * @dev Determine if the `manager` has permission to act on behalf of the `owner`.
+     */
     function hasPermission(address owner, address manager) public view returns (bool) {
         return owner == manager || isAllowed[owner][manager];
     }
 
     /**
-     * @dev Hook that is called before any transfer of tokens. This includes
+     * @dev Hook that is called before any transfer of tokens. This does not include
      * minting and burning.
      *
      * Calling conditions:
@@ -305,30 +308,8 @@ contract WrappedERC20 is Context, IERC20, IERC20Metadata {
      * - when `from` is zero, `amount` tokens will be minted for `to`.
      * - when `to` is zero, `amount` of ``from``'s tokens will be burned.
      * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
      */
     function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal virtual {}
-
-    /**
-     * @dev Hook that is called after any transfer of tokens. This includes
-     * minting and burning.
-     *
-     * Calling conditions:
-     *
-     * - when `from` and `to` are both non-zero, `amount` of ``from``'s tokens
-     * has been transferred to `to`.
-     * - when `from` is zero, `amount` tokens have been minted for `to`.
-     * - when `to` is zero, `amount` of ``from``'s tokens have been burned.
-     * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
-     */
-    function _afterTokenTransfer(
         address from,
         address to,
         uint256 amount
