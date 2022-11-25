@@ -172,19 +172,6 @@ contract CusdcV3Wrapper is WrappedERC20, CometHelpers {
         return (balance * exchangeRate()) / BASE_INDEX_SCALE;
     }
 
-    function accruedSupplyIndex(uint64 baseSupplyIndex, uint256 timeElapsed)
-        internal
-        view
-        returns (uint64)
-    {
-        if (timeElapsed > 0) {
-            uint256 utilization = underlyingComet.getUtilization();
-            uint256 supplyRate = underlyingComet.getSupplyRate(utilization);
-            baseSupplyIndex += safe64(mulFactor(baseSupplyIndex, supplyRate * timeElapsed));
-        }
-        return baseSupplyIndex;
-    }
-
     function exchangeRate() public view returns (uint256) {
         uint256 totalSupply_ = totalSupply();
         if (totalSupply_ == 0) {

@@ -449,31 +449,6 @@ describe('Wrapped CUSDCv3', () => {
         (underlyingBalance * BigInt(1e15)) / totalSupply
       )
     })
-
-    it('is monotonically increasing', async () => {
-      const { wcusdcV3, usdc, cusdcV3 } = await makewCSUDC()
-      const [_, bob] = await ethers.getSigners()
-
-      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
-      let prevExchangeRate = await wcusdcV3.exchangeRate()
-      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
-      let newExchangeRate = await wcusdcV3.exchangeRate()
-      expect(newExchangeRate).to.be.gte(prevExchangeRate)
-      await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
-      prevExchangeRate = newExchangeRate
-      newExchangeRate = await wcusdcV3.exchangeRate()
-      expect(newExchangeRate).to.be.gte(prevExchangeRate)
-
-      await wcusdcV3.connect(bob).withdrawTo(bob.address, exp(40000, 6))
-      prevExchangeRate = newExchangeRate
-      newExchangeRate = await wcusdcV3.exchangeRate()
-      expect(newExchangeRate).to.be.gte(prevExchangeRate)
-
-      await wcusdcV3.connect(bob).withdrawTo(bob.address, exp(10000, 6))
-      prevExchangeRate = newExchangeRate
-      newExchangeRate = await wcusdcV3.exchangeRate()
-      expect(newExchangeRate).to.be.gte(prevExchangeRate)
-    })
   })
 
   describe('claiming rewards', () => {

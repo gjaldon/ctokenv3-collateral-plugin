@@ -2,7 +2,7 @@
 pragma solidity 0.8.9;
 
 interface ICusdcV3Wrapper {
-    function underlyingExchangeRate() external view returns (uint256);
+    function exchangeRate() external view returns (uint256);
 
     function claimTo(address src, address to) external;
 }
