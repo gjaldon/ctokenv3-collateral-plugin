@@ -50,6 +50,8 @@ import {
   CusdcV3Wrapper,
   CusdcV3Wrapper__factory,
   MockV3Aggregator__factory,
+  CometMock,
+  CometMock__factory,
 } from '../typechain-types'
 
 const RSR_PRICE_FEED = '0x759bBC1be8F90eE6457C44abc7d443842a976d02'
@@ -310,7 +312,6 @@ interface CollateralOpts {
 
 const defaultCollateralOpts = {
   chainlinkFeed: USDC_USD_PRICE_FEED,
-  erc20: CUSDC_V3, // This will be replaced by the Wrapped CUSDC
   rewardERC20: COMP,
   rewardsAddr: REWARDS,
   targetName: ethers.utils.formatBytes32String('USD'),
@@ -351,8 +352,11 @@ export const makeCollateral = (opts: CollateralOpts = {}): Fixture<Collateral> =
     const chainlinkFeed = <MockV3Aggregator>await MockV3AggregatorFactory.deploy(6, exp(1, 6))
     collateralOpts.chainlinkFeed = chainlinkFeed.address
 
-    const { cusdcV3, wcusdcV3, usdc } = await makewCSUDC()
-    collateralOpts.erc20 = wcusdcV3.address
+    let { cusdcV3, wcusdcV3, usdc } = await makewCSUDC()
+    if (collateralOpts.erc20 === undefined) {
+      collateralOpts.erc20 = wcusdcV3.address
+    }
+    cusdcV3 = <CometInterface>cusdcV3
     const collateral = await deployCollateral(collateralOpts)
     return { collateral, chainlinkFeed, cusdcV3, wcusdcV3, usdc }
   }
@@ -360,7 +364,52 @@ export const makeCollateral = (opts: CollateralOpts = {}): Fixture<Collateral> =
   return makeCollateralFixture
 }
 
-export const makewCSUDC = async () => {
+interface CollateralWithMockComet {
+  collateral: CTokenV3Collateral
+  chainlinkFeed: MockV3Aggregator
+  cusdcV3: CometMock
+  wcusdcV3: CusdcV3Wrapper
+  usdc: ERC20Mock
+}
+
+export const makeCollateralCometMock = (
+  opts: CollateralOpts = {}
+): Fixture<CollateralWithMockComet> => {
+  const collateralOpts = { ...defaultCollateralOpts, ...opts }
+
+  const makeCollateralFixtureMock = async () => {
+    const MockV3AggregatorFactory = <MockV3Aggregator__factory>(
+      await ethers.getContractFactory('MockV3Aggregator')
+    )
+    const chainlinkFeed = <MockV3Aggregator>await MockV3AggregatorFactory.deploy(6, exp(1, 6))
+    collateralOpts.chainlinkFeed = chainlinkFeed.address
+
+    const CometFactory = <CometMock__factory>await ethers.getContractFactory('CometMock')
+    const cusdcV3 = <CometMock>await CometFactory.deploy(10000, 10000)
+
+    const CusdcV3WrapperFactory = <CusdcV3Wrapper__factory>(
+      await ethers.getContractFactory('CusdcV3Wrapper')
+    )
+    const wcusdcV3 = <CusdcV3Wrapper>(
+      await CusdcV3WrapperFactory.deploy(cusdcV3.address, REWARDS, COMP)
+    )
+    const usdc = <ERC20Mock>await ethers.getContractAt('ERC20Mock', USDC)
+    collateralOpts.erc20 = wcusdcV3.address
+
+    const collateral = await deployCollateral(collateralOpts)
+    return { collateral, chainlinkFeed, cusdcV3, wcusdcV3, usdc }
+  }
+
+  return makeCollateralFixtureMock
+}
+
+interface WrappedcUSDC {
+  cusdcV3: CometInterface
+  wcusdcV3: CusdcV3Wrapper
+  usdc: ERC20Mock
+}
+
+export const makewCSUDC = async (): Promise<WrappedcUSDC> => {
   const cusdcV3 = <CometInterface>await ethers.getContractAt('CometInterface', CUSDC_V3)
   const CusdcV3WrapperFactory = <CusdcV3Wrapper__factory>(
     await ethers.getContractFactory('CusdcV3Wrapper')

@@ -3,7 +3,7 @@ import { ethers } from 'hardhat'
 import { InvalidMockV3Aggregator } from '../typechain-types'
 import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
 import { ORACLE_TIMEOUT, CollateralStatus, allocateUSDC, exp, mintWcUSDC } from './helpers'
-import { deployCollateral, makeCollateral } from './fixtures'
+import { deployCollateral, makeCollateral, makeCollateralCometMock } from './fixtures'
 
 describe('constructor validation', () => {
   it('validates targetName', async () => {
@@ -138,7 +138,7 @@ describe('status', () => {
     expect(await collateral.whenDefault()).to.equal(ethers.constants.MaxUint256)
   })
 
-  it('updates status in case of soft default', async () => {
+  it('soft-defaults when reference unit depegs beyond threshold', async () => {
     const { collateral, chainlinkFeed } = await loadFixture(makeCollateral())
     const delayUntilDefault = (await collateral.delayUntilDefault()).toBigInt()
 
@@ -157,6 +157,38 @@ describe('status', () => {
     const nextBlockTimestamp = (await time.latest()) + 1
     await time.setNextBlockTimestamp(nextBlockTimestamp)
     expectedDefaultTimestamp = BigInt(nextBlockTimestamp) + delayUntilDefault
+
+    await expect(collateral.refresh())
+      .to.emit(collateral, 'DefaultStatusChanged')
+      .withArgs(CollateralStatus.SOUND, CollateralStatus.IFFY)
+    expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
+    expect(await collateral.whenDefault()).to.equal(expectedDefaultTimestamp)
+
+    // Move time forward past delayUntilDefault
+    await time.increase(delayUntilDefault)
+    expect(await collateral.status()).to.equal(CollateralStatus.DISABLED)
+
+    // Nothing changes if attempt to refresh after default for CTokenV3
+    let prevWhenDefault: bigint = (await collateral.whenDefault()).toBigInt()
+    await expect(collateral.refresh()).to.not.emit(collateral, 'DefaultStatusChanged')
+    expect(await collateral.status()).to.equal(CollateralStatus.DISABLED)
+    expect(await collateral.whenDefault()).to.equal(prevWhenDefault)
+  })
+
+  it('soft-defaults when compound reserves are below target reserves iffy threshold', async () => {
+    const { collateral, cusdcV3 } = await loadFixture(makeCollateralCometMock())
+    const delayUntilDefault = (await collateral.delayUntilDefault()).toBigInt()
+
+    // Check initial state
+    expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
+    expect(await collateral.whenDefault()).to.equal(ethers.constants.MaxUint256)
+
+    // cUSDC/Comet's reserves gone down to 50% of target reserves
+    await cusdcV3.setReserves(5000)
+
+    const nextBlockTimestamp = (await time.latest()) + 1
+    await time.setNextBlockTimestamp(nextBlockTimestamp)
+    const expectedDefaultTimestamp = BigInt(nextBlockTimestamp) + delayUntilDefault
 
     await expect(collateral.refresh())
       .to.emit(collateral, 'DefaultStatusChanged')
