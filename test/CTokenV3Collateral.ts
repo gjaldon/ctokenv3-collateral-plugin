@@ -2,7 +2,7 @@ import { expect } from 'chai'
 import { ethers } from 'hardhat'
 import { InvalidMockV3Aggregator } from '../typechain-types'
 import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
-import { ORACLE_TIMEOUT, CollateralStatus, allocateUSDC, exp } from './helpers'
+import { ORACLE_TIMEOUT, CollateralStatus, allocateUSDC, exp, mintWcUSDC } from './helpers'
 import { deployCollateral, makeCollateral } from './fixtures'
 
 describe('constructor validation', () => {
@@ -176,8 +176,33 @@ describe('status', () => {
   })
 
   it('updates status in case of hard default', async () => {
-    // It is not possible for CTokenV3Colllateral to hard default because {ref/tok} is
-    // always 1 since USDC (ref) is always 1:1 with cUSDCV3 (tok).
+    const { collateral, usdc, cusdcV3, wcusdcV3 } = await loadFixture(makeCollateral())
+    const [_, bob] = await ethers.getSigners()
+
+    // Check initial state
+    expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
+    expect(await collateral.whenDefault()).to.equal(ethers.constants.MaxUint256)
+
+    await mintWcUSDC(usdc, cusdcV3, wcusdcV3, bob, exp(20000, 6))
+
+    await expect(collateral.refresh()).to.not.emit(collateral, 'DefaultStatusChanged')
+    // State remains the same
+    expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
+    expect(await collateral.whenDefault()).to.equal(ethers.constants.MaxUint256)
+
+    // Force refresh to get new reference price from exchange rate
+    await time.increase(100000)
+    const oldExchangeRate = await wcusdcV3.exchangeRate()
+    await expect(collateral.refresh()).to.not.emit(collateral, 'DefaultStatusChanged')
+
+    // Withdraw 98% of supply so that exchange rate will go down
+    await wcusdcV3.connect(bob).withdraw(exp(19600, 6))
+    expect(oldExchangeRate).to.be.gt(await wcusdcV3.exchangeRate())
+
+    // Collateral defaults due to refPerTok() going down
+    await expect(collateral.refresh()).to.emit(collateral, 'DefaultStatusChanged')
+    expect(await collateral.status()).to.equal(CollateralStatus.DISABLED)
+    expect(await collateral.whenDefault()).to.equal(await time.latest())
   })
 
   it('reverts if price is stale', async () => {

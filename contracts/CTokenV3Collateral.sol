@@ -37,6 +37,7 @@ contract CTokenV3Collateral is ICollateral {
     uint192 public immutable maxTradeVolume; // {UoA}
     uint192 public immutable fallbackPrice; // {UoA}
     uint192 public immutable defaultThreshold; // {%} e.g. 0.05
+    uint192 public prevReferencePrice; // previous rate, {collateral/reference}
 
     uint256 public immutable delayUntilDefault; // {s} e.g 86400
     uint256 private constant NEVER = type(uint256).max;
@@ -67,6 +68,7 @@ contract CTokenV3Collateral is ICollateral {
         oracleTimeout = config.oracleTimeout;
         defaultThreshold = config.defaultThreshold;
         rewardsAddr = config.rewardsAddr;
+        prevReferencePrice = refPerTok();
     }
 
     /// Refresh exchange rates and update default status.
@@ -76,22 +78,30 @@ contract CTokenV3Collateral is ICollateral {
         if (alreadyDefaulted()) return;
         CollateralStatus oldStatus = status();
 
-        try chainlinkFeed.price_(oracleTimeout) returns (uint192 p) {
-            // Check for soft default of underlying reference token
-            uint192 peg = targetPerRef();
+        // Check for hard default
+        uint192 referencePrice = refPerTok();
 
-            // D18{UoA/ref}= D18{UoA/ref} * D18{1} / D18
-            uint192 delta = (peg * defaultThreshold) / FIX_ONE; // D18{UoA/ref}
+        if (referencePrice < prevReferencePrice) {
+            markStatus(CollateralStatus.DISABLED);
+        } else {
+            try chainlinkFeed.price_(oracleTimeout) returns (uint192 p) {
+                // Check for soft default of underlying reference token
+                uint192 peg = targetPerRef();
 
-            // If the price is below the default-threshold price, default eventually
-            // uint192(+/-) is the same as Fix.plus/minus
-            if (p < peg - delta || p > peg + delta) markStatus(CollateralStatus.IFFY);
-            else markStatus(CollateralStatus.SOUND);
-        } catch (bytes memory errData) {
-            // see: docs/solidity-style.md#Catching-Empty-Data
-            if (errData.length == 0) revert(); // solhint-disable-line reason-string
-            markStatus(CollateralStatus.IFFY);
+                // D18{UoA/ref}= D18{UoA/ref} * D18{1} / D18
+                uint192 delta = (peg * defaultThreshold) / FIX_ONE; // D18{UoA/ref}
+
+                // If the price is below the default-threshold price, default eventually
+                // uint192(+/-) is the same as Fix.plus/minus
+                if (p < peg - delta || p > peg + delta) markStatus(CollateralStatus.IFFY);
+                else markStatus(CollateralStatus.SOUND);
+            } catch (bytes memory errData) {
+                // see: docs/solidity-style.md#Catching-Empty-Data
+                if (errData.length == 0) revert(); // solhint-disable-line reason-string
+                markStatus(CollateralStatus.IFFY);
+            }
         }
+        prevReferencePrice = referencePrice;
 
         CollateralStatus newStatus = status();
         if (oldStatus != newStatus) {
@@ -140,7 +150,7 @@ contract CTokenV3Collateral is ICollateral {
     ///   of the wCUSDC.
     /// @return {ref/tok} Quantity of whole reference units per whole collateral tokens
     function refPerTok() public view returns (uint192) {
-        uint256 exchangeRate = ICusdcV3Wrapper(address(erc20)).underlyingExchangeRate();
+        uint256 exchangeRate = ICusdcV3Wrapper(address(erc20)).exchangeRate();
         return _safeWrap(exchangeRate);
     }
 

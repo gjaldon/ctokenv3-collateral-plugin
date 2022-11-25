@@ -32,7 +32,6 @@ npx hardhat run scripts/deploy.ts
 
 - `Comet.accrueAccount()` needs to be called prior to updating user data stored in state variables so we get the updated supply indices from Comet. Without calling `accrueAccount` we may get outdated supply indices and the records we have of user's `principal` and `baseTrackingAccrued` will be inaccurate. This will mean inaccurate balances and accrued rewards. Also, we are calling a known contract and `Comet.accrueAccount` does not do any re-entrancy.
 
-`CusdcV3Wrapper.accruedSupplyIndex(uint64,uint256) (contracts/CusdcV3Wrapper.sol) uses timestamp for comparisons`
 `CusdcV3Wrapper.claimTo(address,address) (contracts/CusdcV3Wrapper.sol) uses timestamp for comparisons`
 `CusdcV3Wrapper.getRewardOwed(address) (contracts/CusdcV3Wrapper.sol) uses timestamp for comparisons`
 `CusdcV3Wrapper.updatedAccountIndices(CusdcV3Wrapper.UserBasic,int256) (contracts/CusdcV3Wrapper.sol) uses timestamp for comparisons`
