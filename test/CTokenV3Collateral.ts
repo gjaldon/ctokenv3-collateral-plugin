@@ -2,7 +2,14 @@ import { expect } from 'chai'
 import { ethers } from 'hardhat'
 import { InvalidMockV3Aggregator } from '../typechain-types'
 import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
-import { ORACLE_TIMEOUT, CollateralStatus, allocateUSDC, exp, mintWcUSDC } from './helpers'
+import {
+  ORACLE_TIMEOUT,
+  CollateralStatus,
+  allocateUSDC,
+  exp,
+  mintWcUSDC,
+  resetFork,
+} from './helpers'
 import { deployCollateral, makeCollateral, makeCollateralCometMock } from './fixtures'
 
 describe('constructor validation', () => {
@@ -139,7 +146,7 @@ describe('status', () => {
   })
 
   it('soft-defaults when reference unit depegs beyond threshold', async () => {
-    const { collateral, chainlinkFeed } = await loadFixture(makeCollateral())
+    const { collateral, chainlinkFeed, cusdcV3 } = await loadFixture(makeCollateralCometMock())
     const delayUntilDefault = (await collateral.delayUntilDefault()).toBigInt()
 
     // Check initial state
@@ -176,7 +183,9 @@ describe('status', () => {
   })
 
   it('soft-defaults when compound reserves are below target reserves iffy threshold', async () => {
-    const { collateral, cusdcV3 } = await loadFixture(makeCollateralCometMock())
+    const { collateral, cusdcV3 } = await loadFixture(
+      makeCollateralCometMock({ reservesThresholdIffy: 50 })
+    )
     const delayUntilDefault = (await collateral.delayUntilDefault()).toBigInt()
 
     // Check initial state
@@ -223,12 +232,12 @@ describe('status', () => {
     expect(await collateral.whenDefault()).to.equal(ethers.constants.MaxUint256)
 
     // Force refresh to get new reference price from exchange rate
-    await time.increase(100000)
+    await time.increase(1000)
     const oldExchangeRate = await wcusdcV3.exchangeRate()
     await expect(collateral.refresh()).to.not.emit(collateral, 'DefaultStatusChanged')
 
-    // Withdraw 98% of supply so that exchange rate will go down
-    await wcusdcV3.connect(bob).withdraw(exp(19600, 6))
+    // Withdraw ~99% of supply so that exchange rate will go down
+    await wcusdcV3.connect(bob).withdraw(exp(19900, 6))
     expect(oldExchangeRate).to.be.gt(await wcusdcV3.exchangeRate())
 
     // Collateral defaults due to refPerTok() going down
@@ -245,7 +254,7 @@ describe('status', () => {
   })
 
   it('enters IFFY state when price becomes stale', async () => {
-    const { collateral } = await loadFixture(makeCollateral())
+    const { collateral, wcusdcV3, cusdcV3 } = await loadFixture(makeCollateral())
     await time.increase(ORACLE_TIMEOUT)
     await collateral.refresh()
     expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
@@ -259,18 +268,13 @@ describe('status', () => {
       await InvalidMockV3AggregatorFactory.deploy(6, exp(1, 6))
     )
 
-    const invalidCollateral = await deployCollateral({
+    const { collateral } = await makeCollateral({
       chainlinkFeed: invalidChainlinkFeed.address,
-    })
+    })()
 
     // Reverting with no reason
     await invalidChainlinkFeed.setSimplyRevert(true)
-    await expect(invalidCollateral.refresh()).to.be.revertedWithoutReason()
-    expect(await invalidCollateral.status()).to.equal(CollateralStatus.SOUND)
-
-    // Runnning out of gas (same error)
-    await invalidChainlinkFeed.setSimplyRevert(false)
-    await expect(invalidCollateral.refresh()).to.be.revertedWithoutReason()
-    expect(await invalidCollateral.status()).to.equal(CollateralStatus.SOUND)
+    await expect(collateral.refresh()).to.be.revertedWithoutReason()
+    expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
   })
 })

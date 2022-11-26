@@ -426,16 +426,16 @@ describe('Wrapped CUSDCv3', () => {
   })
 
   describe('exchange rate', async () => {
-    it('returns 1e15 when wrapped token has 0 balance', async () => {
+    it('returns 1e18 when wrapped token has 0 balance', async () => {
       const { wcusdcV3, cusdcV3 } = await makewCSUDC()
       expect(await cusdcV3.balanceOf(wcusdcV3.address)).to.equal(0)
-      expect(await wcusdcV3.exchangeRate()).to.equal(exp(1, 15))
+      expect(await wcusdcV3.exchangeRate()).to.equal(exp(1, 18))
     })
 
-    it('returns 1e15 when wrapped token has 0 supply of the underlying token', async () => {
+    it('returns 1e18 when wrapped token has 0 supply of the underlying token', async () => {
       const { wcusdcV3 } = await makewCSUDC()
       expect(await wcusdcV3.totalSupply()).to.equal(0)
-      expect(await wcusdcV3.exchangeRate()).to.equal(exp(1, 15))
+      expect(await wcusdcV3.exchangeRate()).to.equal(exp(1, 18))
     })
 
     it('computes exchange rate based on total underlying balance and total supply of wrapped token', async () => {
@@ -446,7 +446,7 @@ describe('Wrapped CUSDCv3', () => {
       const totalSupply = (await wcusdcV3.totalSupply()).toBigInt()
       const underlyingBalance = (await cusdcV3.balanceOf(wcusdcV3.address)).toBigInt()
       expect(await wcusdcV3.exchangeRate()).to.equal(
-        (underlyingBalance * BigInt(1e15)) / totalSupply
+        (underlyingBalance * BigInt(1e18)) / totalSupply
       )
     })
   })

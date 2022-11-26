@@ -19,7 +19,7 @@ export const USDC_HOLDER = '0x0a59649758aa4d66e25f08dd01271e891fe52199'
 export const COMET_CONFIGURATOR = '0x316f9708bB98af7dA9c68C1C3b5e79039cD336E3'
 export const COMET_PROXY_ADMIN = '0x1EC63B5883C3481134FD50D5DAebc83Ecd2E8779'
 
-export const ORACLE_TIMEOUT = 281474976710655n / 2n // type(uint48).max / 2
+export const ORACLE_TIMEOUT = 86400n // 24 hours in seconds
 export const DEFAULT_THRESHOLD = 5n * 10n ** 16n // 0.05
 export const DELAY_UNTIL_DEFAULT = 86400n
 export const MAX_TRADE_VOL = 1000000n
@@ -72,7 +72,7 @@ export const allocateERC20 = async (
   to: string,
   balance: Numeric
 ) => {
-  if (typeof balance == 'number') {
+  if (typeof balance === 'number') {
     balance = BigInt(balance)
   }
 

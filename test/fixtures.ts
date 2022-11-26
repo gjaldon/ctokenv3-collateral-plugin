@@ -261,8 +261,6 @@ export const makeReserveProtocol = async () => {
   await assetRegistry.connect(owner).register(collateral.address)
 
   // Set initial Basket
-  const collateralERC20 = await collateral.erc20()
-  await basketHandler.connect(owner).setPrimeBasket([collateralERC20], [FIX_ONE]) // CUSDC_V3 is 100% of Basket
   await basketHandler.connect(owner).refreshBasket()
 
   // Set up allowances
@@ -300,7 +298,6 @@ interface Collateral {
 interface CollateralOpts {
   chainlinkFeed?: string
   erc20?: string
-  rewardERC20?: string
   rewardsAddr?: string
   targetName?: string
   oracleTimeout?: bigint
@@ -308,6 +305,8 @@ interface CollateralOpts {
   maxTradeVolume?: bigint
   defaultThreshold?: bigint
   delayUntilDefault?: bigint
+  reservesThresholdIffy?: number
+  reservesThresholdDisabled?: number
 }
 
 const defaultCollateralOpts = {
@@ -320,6 +319,8 @@ const defaultCollateralOpts = {
   maxTradeVolume: MAX_TRADE_VOL,
   defaultThreshold: DEFAULT_THRESHOLD,
   delayUntilDefault: DELAY_UNTIL_DEFAULT,
+  reservesThresholdIffy: 10,
+  reservesThresholdDisabled: 1,
 }
 
 type Fixture<T> = () => Promise<T>
@@ -335,6 +336,10 @@ export const deployCollateral = async (opts: CollateralOpts = {}): Promise<CToke
       libraries: { OracleLib: oracleLib.address },
     }
   )
+
+  if (opts.erc20 === undefined) {
+    opts.erc20 = CUSDC_V3 // We provided an address here so that deploy will not fail, but this should be Wrapped cUSDCv3
+  }
 
   const collateral = <CTokenV3Collateral>await CTokenV3CollateralFactory.deploy(opts)
   await collateral.deployed()
@@ -353,10 +358,12 @@ export const makeCollateral = (opts: CollateralOpts = {}): Fixture<Collateral> =
     collateralOpts.chainlinkFeed = chainlinkFeed.address
 
     let { cusdcV3, wcusdcV3, usdc } = await makewCSUDC()
+    cusdcV3 = <CometInterface>cusdcV3
+
     if (collateralOpts.erc20 === undefined) {
       collateralOpts.erc20 = wcusdcV3.address
     }
-    cusdcV3 = <CometInterface>cusdcV3
+
     const collateral = await deployCollateral(collateralOpts)
     return { collateral, chainlinkFeed, cusdcV3, wcusdcV3, usdc }
   }
@@ -393,9 +400,8 @@ export const makeCollateralCometMock = (
     const wcusdcV3 = <CusdcV3Wrapper>(
       await CusdcV3WrapperFactory.deploy(cusdcV3.address, REWARDS, COMP)
     )
-    const usdc = <ERC20Mock>await ethers.getContractAt('ERC20Mock', USDC)
     collateralOpts.erc20 = wcusdcV3.address
-
+    const usdc = <ERC20Mock>await ethers.getContractAt('ERC20Mock', USDC)
     const collateral = await deployCollateral(collateralOpts)
     return { collateral, chainlinkFeed, cusdcV3, wcusdcV3, usdc }
   }
