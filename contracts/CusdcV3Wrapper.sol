@@ -85,11 +85,11 @@ contract CusdcV3Wrapper is WrappedERC20, CometHelpers {
         uint256 underlyingBalance = underlyingERC20.balanceOf(from);
         uint256 rate = exchangeRate();
         if (amount > underlyingBalance) {
-            mintAmount = (underlyingBalance * BASE_INDEX_SCALE) / rate;
+            mintAmount = (underlyingBalance * EXP_SCALE) / rate;
             CometInterface.UserBasic memory cometBasic = underlyingComet.userBasic(from);
             basic.principal += uint104(cometBasic.principal);
         } else {
-            mintAmount = (amount * BASE_INDEX_SCALE) / rate;
+            mintAmount = (amount * EXP_SCALE) / rate;
             uint104 principal = basic.principal;
             (uint64 baseSupplyIndex, ) = getSupplyIndices();
             uint256 balance = presentValueSupply(baseSupplyIndex, principal) + amount;
@@ -137,7 +137,7 @@ contract CusdcV3Wrapper is WrappedERC20, CometHelpers {
         underlyingComet.accrueAccount(address(this));
         uint256 balance = balanceOf(src);
         uint256 burnAmount = (amount > balance) ? balance : amount;
-        uint256 transferAmount = (burnAmount * exchangeRate()) / BASE_INDEX_SCALE;
+        uint256 transferAmount = (burnAmount * exchangeRate()) / EXP_SCALE;
 
         UserBasic memory basic = userBasic[src];
         userBasic[src] = updatedAccountIndices(basic, -signed256(transferAmount));
@@ -169,16 +169,16 @@ contract CusdcV3Wrapper is WrappedERC20, CometHelpers {
         if (balance == 0) {
             return 0;
         }
-        return (balance * exchangeRate()) / BASE_INDEX_SCALE;
+        return (balance * exchangeRate()) / EXP_SCALE;
     }
 
     function exchangeRate() public view returns (uint256) {
         uint256 totalSupply_ = totalSupply();
         if (totalSupply_ == 0) {
-            return BASE_INDEX_SCALE;
+            return EXP_SCALE;
         }
         uint256 balance = underlyingERC20.balanceOf(address(this));
-        return (balance * BASE_INDEX_SCALE) / totalSupply_;
+        return (balance * EXP_SCALE) / totalSupply_;
     }
 
     function claimTo(address src, address to) external {
