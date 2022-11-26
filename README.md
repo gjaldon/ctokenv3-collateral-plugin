@@ -1,18 +1,51 @@
-# Sample Hardhat Project
+# Compound III Collateral Plugin
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a script that deploys that contract.
+This is a [Compound III](https://docs.compound.finance/) Collateral Plugin for the [Reserve](https://reserve.org/en/) Protocol.
 
-Try running some of the following tasks:
+This plugin enables the use of `cUSDCv3` (Compound III's cUSDC) as collateral within the Reserve Protocol. Some important notes about Compound III:
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.ts
-```
+- Unlike Compound v2, where you can borrow multiple different assets, Compound III only allows you to borrow the _base asset_. Its _base asset_ is `USDC`.
+- The only way to earn interest is to supply the _base asset_. Supplying any other asset other than the _base asset_ just gives you better borrow rates.
+- There is only one `CToken` in Compound III, unlike in Compound v2. This token is `cUSDCv3` and it is given to users that supply USDC to the protocol.
+- Compound III is also known as Comet. In this document, we will be using Compound III, Comet and cUSDCv3 interchangeably.
+- `cUSDCv3` is a rebasing token unlike `CToken`s in Compound v2.
+- Compound v2 users are being encouraged to move to Compound III.
 
-### Slither Hidden Warnings
+## Implementation
+
+|  `tok`  | `ref` | `target` | `UoA` |
+| :-----: | :---: | :------: | :---: |
+| cUSDCv3 | USDC  |   USD    |  USD  |
+
+Since `cUSDCv3` is a rebasing token, we use a Wrapper Token that converts it into an exchange-rate token so we can use it within Reserve. Technically, our collateral token is `WcUSDCv3` (Wrapped cUSDCv3) but to keep things simple, we will treat `cUSDCv3` as our collateral token.
+
+The `WcUSDCv3` contract keeps track of user participation so they get interest accruals on USDC and the reward accruals as if they had kept ownership of their `cUSDCv3`.
+
+### refPerTok
+
+We use the exchange rate of `WcUSDCv3`:`cUSDCv3` as refPerTok. This value mostly increases but can decrease if a large majority of the supply of `WcUSDCv3` has been burned. Basing on my own tests, this happens when ~90-100% of the supply is burned in one go. Apart from this exceptional circumstance, it will be increasing.
+
+### refresh
+
+The collateral becomes disabled in the following scenarios:
+
+1. refPerTok() decreases. This happens when the exchange rate of `WcUSDCv3`:`cUSDCv3` decreases. This has been described above.
+2. Compound III's reserves have become less than the configured `reservesThresholdDisabled`. Unhealthy levels of reserves may mean the protocol may soon become insolvent.
+
+The collateral becomes iffy in the following scenarios:
+
+1. The reference unit has not been able to maintain peg with the target unit within a configured threshold.
+2. Compound III's reserves have become less than the configured `reservesThresholdIffy`.
+
+Unlike other Collateral Plugins, we do not need to call an update transaction for this to get an updated balance. Compound III is able to compute for latest balances even when state variables for tracking accruals have not been called. This leads to a cheaper refresh() in terms of gas costs relative to other plugins.
+
+### Testing
+
+When possible or practical, we do mainnet forking in our tests. Tests that involve interacting with USDC and Compound III rely on the mainnet versions of those protocols. When testing interactions with the Reserve protocol, we deploy our own version of Reserve.
+
+### Slither
+
+Below are Slither warnings that were hidden since they were found to be non-issues.
 
 `ICollateral is re-used - (contracts/ICollateral.sol)`
 `IRewardable is re-used - (contracts/ICollateral.sol)`
