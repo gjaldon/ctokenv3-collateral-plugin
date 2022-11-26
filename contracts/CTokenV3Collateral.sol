@@ -21,6 +21,8 @@ contract CTokenV3Collateral is ICollateral {
         uint192 maxTradeVolume;
         uint192 defaultThreshold;
         uint256 delayUntilDefault;
+        uint8 reservesThresholdIffy;
+        uint8 reservesThresholdDisabled;
     }
 
     using OracleLib for AggregatorV3Interface;
@@ -29,9 +31,12 @@ contract CTokenV3Collateral is ICollateral {
     AggregatorV3Interface public immutable chainlinkFeed;
     IERC20Metadata public immutable erc20;
     IERC20 public immutable rewardERC20;
+    IComet public immutable comet;
     address public immutable rewardsAddr;
 
     uint8 public immutable erc20Decimals;
+    uint8 public immutable reservesThresholdIffy;
+    uint8 public immutable reservesThresholdDisabled;
     uint48 public immutable oracleTimeout; // {s} Seconds that an oracle value is considered valid
 
     uint192 public immutable maxTradeVolume; // {UoA}
@@ -69,6 +74,9 @@ contract CTokenV3Collateral is ICollateral {
         defaultThreshold = config.defaultThreshold;
         rewardsAddr = config.rewardsAddr;
         prevReferencePrice = refPerTok();
+        reservesThresholdIffy = config.reservesThresholdIffy;
+        reservesThresholdDisabled = config.reservesThresholdDisabled;
+        comet = IComet(ICusdcV3Wrapper(address(erc20)).underlyingComet());
     }
 
     /// Refresh exchange rates and update default status.
@@ -80,9 +88,19 @@ contract CTokenV3Collateral is ICollateral {
 
         // Check for hard default
         uint192 referencePrice = refPerTok();
+        int256 cometReserves = comet.getReserves();
+        uint256 targetReserves = comet.targetReserves();
+        uint256 reservesIffy = (targetReserves * reservesThresholdIffy) / 100;
+        uint256 reservesDisabled = (targetReserves * reservesThresholdDisabled) / 100;
 
-        if (referencePrice < prevReferencePrice) {
+        if (
+            referencePrice < prevReferencePrice ||
+            cometReserves < 0 ||
+            uint256(cometReserves) <= reservesDisabled
+        ) {
             markStatus(CollateralStatus.DISABLED);
+        } else if (uint256(cometReserves) <= reservesIffy) {
+            markStatus(CollateralStatus.IFFY);
         } else {
             try chainlinkFeed.price_(oracleTimeout) returns (uint192 p) {
                 // Check for soft default of underlying reference token
