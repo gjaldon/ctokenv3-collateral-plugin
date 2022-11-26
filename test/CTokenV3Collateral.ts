@@ -222,7 +222,7 @@ describe('status', () => {
     expect(await collateral.whenDefault()).to.equal(prevWhenDefault)
   })
 
-  it('updates status in case of hard default', async () => {
+  it('hard-defaults when refPerTok() decreases', async () => {
     const { collateral, usdc, cusdcV3, wcusdcV3 } = await loadFixture(makeCollateral())
     const [_, bob] = await ethers.getSigners()
 
@@ -248,6 +248,25 @@ describe('status', () => {
 
     // Collateral defaults due to refPerTok() going down
     await expect(collateral.refresh()).to.emit(collateral, 'DefaultStatusChanged')
+    expect(await collateral.status()).to.equal(CollateralStatus.DISABLED)
+    expect(await collateral.whenDefault()).to.equal(await time.latest())
+  })
+
+  it('hard-defaults when reserves threshold is at disabled levels', async () => {
+    const { collateral, cusdcV3, wcusdcV3 } = await loadFixture(
+      makeCollateralCometMock({ reservesThresholdDisabled: 20 })
+    )
+    const [_, bob] = await ethers.getSigners()
+
+    // Check initial state
+    expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
+    expect(await collateral.whenDefault()).to.equal(ethers.constants.MaxUint256)
+
+    // cUSDC/Comet's reserves gone down to 19% of target reserves
+    await cusdcV3.setReserves(1900)
+
+    await expect(collateral.refresh()).to.emit(collateral, 'DefaultStatusChanged')
+    // State remains the same
     expect(await collateral.status()).to.equal(CollateralStatus.DISABLED)
     expect(await collateral.whenDefault()).to.equal(await time.latest())
   })
