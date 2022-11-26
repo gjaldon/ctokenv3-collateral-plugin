@@ -261,6 +261,8 @@ export const makeReserveProtocol = async () => {
   await assetRegistry.connect(owner).register(collateral.address)
 
   // Set initial Basket
+  const collateralERC20 = await collateral.erc20()
+  await basketHandler.connect(owner).setPrimeBasket([collateralERC20], [FIX_ONE]) // CUSDC_V3 is 100% of Basket
   await basketHandler.connect(owner).refreshBasket()
 
   // Set up allowances
@@ -298,6 +300,7 @@ interface Collateral {
 interface CollateralOpts {
   chainlinkFeed?: string
   erc20?: string
+  rewardERC20?: string
   rewardsAddr?: string
   targetName?: string
   oracleTimeout?: bigint
@@ -325,6 +328,9 @@ const defaultCollateralOpts = {
 
 type Fixture<T> = () => Promise<T>
 
+// To successfully deploy, we would need to provide `opts.erc20` which would be an address where a
+// `CusdcV3Wrapper` is deployed. Without a valid `CusdV3Wrapper`, it would fail on deployment since
+// the collateral uses the wrapper's exchange rate as `refPerTok()`.
 export const deployCollateral = async (opts: CollateralOpts = {}): Promise<CTokenV3Collateral> => {
   opts = { ...defaultCollateralOpts, ...opts }
 
@@ -336,10 +342,6 @@ export const deployCollateral = async (opts: CollateralOpts = {}): Promise<CToke
       libraries: { OracleLib: oracleLib.address },
     }
   )
-
-  if (opts.erc20 === undefined) {
-    opts.erc20 = CUSDC_V3 // We provided an address here so that deploy will not fail, but this should be Wrapped cUSDCv3
-  }
 
   const collateral = <CTokenV3Collateral>await CTokenV3CollateralFactory.deploy(opts)
   await collateral.deployed()
@@ -354,6 +356,7 @@ export const makeCollateral = (opts: CollateralOpts = {}): Fixture<Collateral> =
     const MockV3AggregatorFactory = <MockV3Aggregator__factory>(
       await ethers.getContractFactory('MockV3Aggregator')
     )
+
     const chainlinkFeed = <MockV3Aggregator>await MockV3AggregatorFactory.deploy(6, exp(1, 6))
     collateralOpts.chainlinkFeed = chainlinkFeed.address
 

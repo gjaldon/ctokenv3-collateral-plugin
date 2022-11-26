@@ -1,6 +1,7 @@
 import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
+import { CusdcV3Wrapper, CusdcV3Wrapper__factory } from '../typechain-types'
 import {
   COMP,
   MAX_TRADE_VOL,
@@ -14,6 +15,7 @@ import {
   resetFork,
   enableRewardsAccrual,
   mintWcUSDC,
+  CUSDC_V3,
 } from './helpers'
 import { makeReserveProtocol, deployCollateral } from './fixtures'
 
@@ -66,8 +68,16 @@ describe('integration tests', () => {
     await collateral.refresh()
     expect(await collateral.status()).to.equal(CollateralStatus.IFFY)
 
+    const CusdcV3WrapperFactory = <CusdcV3Wrapper__factory>(
+      await ethers.getContractFactory('CusdcV3Wrapper')
+    )
+    const wcusdcV3 = <CusdcV3Wrapper>await CusdcV3WrapperFactory.deploy(CUSDC_V3, REWARDS, COMP)
+
     // CTokens Collateral with no price
-    const noPriceCtokenCollateral = await deployCollateral({ chainlinkFeed: NO_PRICE_DATA_FEED })
+    const noPriceCtokenCollateral = await deployCollateral({
+      erc20: wcusdcV3.address,
+      chainlinkFeed: NO_PRICE_DATA_FEED,
+    })
 
     // Collateral with no price info should revert
     await expect(noPriceCtokenCollateral.strictPrice()).to.be.reverted

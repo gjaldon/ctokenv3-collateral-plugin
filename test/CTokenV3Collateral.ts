@@ -1,6 +1,10 @@
 import { expect } from 'chai'
 import { ethers } from 'hardhat'
-import { InvalidMockV3Aggregator } from '../typechain-types'
+import {
+  InvalidMockV3Aggregator,
+  CusdcV3Wrapper,
+  CusdcV3Wrapper__factory,
+} from '../typechain-types'
 import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
 import {
   ORACLE_TIMEOUT,
@@ -8,38 +12,40 @@ import {
   allocateUSDC,
   exp,
   mintWcUSDC,
-  resetFork,
+  REWARDS,
+  COMP,
+  CUSDC_V3,
 } from './helpers'
 import { deployCollateral, makeCollateral, makeCollateralCometMock } from './fixtures'
 
 describe('constructor validation', () => {
   it('validates targetName', async () => {
-    await expect(deployCollateral({ targetName: ethers.constants.HashZero })).to.be.revertedWith(
-      'targetName missing'
-    )
+    await expect(
+      deployCollateral({ erc20: CUSDC_V3, targetName: ethers.constants.HashZero })
+    ).to.be.revertedWith('targetName missing')
   })
 
   it('does not allow missing defaultThreshold', async () => {
-    await expect(deployCollateral({ defaultThreshold: 0n })).to.be.revertedWith(
+    await expect(deployCollateral({ erc20: CUSDC_V3, defaultThreshold: 0n })).to.be.revertedWith(
       'defaultThreshold zero'
     )
   })
 
   it('does not allow missing delayUntilDefault', async () => {
-    await expect(deployCollateral({ delayUntilDefault: 0n })).to.be.revertedWith(
+    await expect(deployCollateral({ erc20: CUSDC_V3, delayUntilDefault: 0n })).to.be.revertedWith(
       'delayUntilDefault zero'
     )
   })
 
   it('does not allow missing rewardERC20', async () => {
     await expect(
-      deployCollateral({ rewardERC20: ethers.constants.AddressZero })
+      deployCollateral({ erc20: CUSDC_V3, rewardERC20: ethers.constants.AddressZero })
     ).to.be.revertedWith('rewardERC20 missing')
   })
 
   it('Should not allow missing rewardsAddr', async () => {
     await expect(
-      deployCollateral({ rewardsAddr: ethers.constants.AddressZero })
+      deployCollateral({ erc20: CUSDC_V3, rewardsAddr: ethers.constants.AddressZero })
     ).to.be.revertedWith('rewardsAddr missing')
   })
 })
@@ -268,13 +274,24 @@ describe('status', () => {
       await InvalidMockV3AggregatorFactory.deploy(6, exp(1, 6))
     )
 
-    const { collateral } = await makeCollateral({
+    const CusdcV3WrapperFactory = <CusdcV3Wrapper__factory>(
+      await ethers.getContractFactory('CusdcV3Wrapper')
+    )
+    const wcusdcV3 = <CusdcV3Wrapper>await CusdcV3WrapperFactory.deploy(CUSDC_V3, REWARDS, COMP)
+
+    const invalidCollateral = await deployCollateral({
+      erc20: wcusdcV3.address,
       chainlinkFeed: invalidChainlinkFeed.address,
-    })()
+    })
 
     // Reverting with no reason
     await invalidChainlinkFeed.setSimplyRevert(true)
-    await expect(collateral.refresh()).to.be.revertedWithoutReason()
-    expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
+    await expect(invalidCollateral.refresh()).to.be.revertedWithoutReason()
+    expect(await invalidCollateral.status()).to.equal(CollateralStatus.SOUND)
+
+    // Runnning out of gas (same error)
+    await invalidChainlinkFeed.setSimplyRevert(false)
+    await expect(invalidCollateral.refresh()).to.be.revertedWithoutReason()
+    expect(await invalidCollateral.status()).to.equal(CollateralStatus.SOUND)
   })
 })
