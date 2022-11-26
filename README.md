@@ -54,7 +54,7 @@ Below are Slither warnings that were hidden since they were found to be non-issu
 - This gets triggered since we are compiling contracts from the Reserve protocol repo. Instead of changing the name, I am silencing the warning since these contracts in the Reserve dependency and in this repo are identical. I am keeping the interfaces needed for the Collateral contract in this repo for easy reference.
 
 `CusdcV3Wrapper.underlyingBalanceOf(address) (contracts/CusdcV3Wrapper.sol) uses a dangerous strict equality:`
-`CusdcV3Wrapper.underlyingExchangeRate() (contracts/CusdcV3Wrapper.sol) uses a dangerous strict equality`
+`CusdcV3Wrapper.exchangeRate() (contracts/CusdcV3Wrapper.sol) uses a dangerous strict equality`
 
 - The strict equalities are only used to check if user has a balance of the Wrapped Tokens or if there is any supply of the Wrapped Tokens. No balance or supply should return 0.
 
