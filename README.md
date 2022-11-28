@@ -43,6 +43,11 @@ Unlike other Collateral Plugins, we do not need to call an update transaction fo
 
 When possible or practical, we do mainnet forking in our tests. Tests that involve interacting with USDC and Compound III rely on the mainnet versions of those protocols. When testing interactions with the Reserve protocol, we deploy our own version of Reserve.
 
+### Deployment
+
+This comes with a [deploy script](scripts/deploy.ts) and [configuration](scripts/configuration.ts). It is already fully configured for deployment
+to Mainnet and Goerli. You may optionally set `cusdcV3Wrapper` and `oracleLib` if you want to use existing deployments for the Wrapped cUSDCv3 and OracleLib, respectively.
+
 ### Slither
 
 Below are Slither warnings that were hidden since they were found to be non-issues.
