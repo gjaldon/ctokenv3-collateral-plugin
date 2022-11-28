@@ -42,12 +42,6 @@ describe('constructor validation', () => {
       deployCollateral({ erc20: CUSDC_V3, rewardERC20: ethers.constants.AddressZero })
     ).to.be.revertedWith('rewardERC20 missing')
   })
-
-  it('Should not allow missing rewardsAddr', async () => {
-    await expect(
-      deployCollateral({ erc20: CUSDC_V3, rewardsAddr: ethers.constants.AddressZero })
-    ).to.be.revertedWith('rewardsAddr missing')
-  })
 })
 
 describe('prices', () => {

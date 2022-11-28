@@ -14,7 +14,6 @@ contract CTokenV3Collateral is ICollateral {
         AggregatorV3Interface chainlinkFeed;
         IERC20Metadata erc20;
         IERC20 rewardERC20;
-        address rewardsAddr;
         bytes32 targetName;
         uint48 oracleTimeout;
         uint192 fallbackPrice;
@@ -32,7 +31,6 @@ contract CTokenV3Collateral is ICollateral {
     IERC20Metadata public immutable erc20;
     IERC20 public immutable rewardERC20;
     IComet public immutable comet;
-    address public immutable rewardsAddr;
 
     uint8 public immutable erc20Decimals;
     uint8 public immutable reservesThresholdIffy;
@@ -58,7 +56,6 @@ contract CTokenV3Collateral is ICollateral {
         require(config.oracleTimeout > 0, "oracleTimeout zero");
         require(address(config.rewardERC20) != address(0), "rewardERC20 missing");
         require(config.defaultThreshold > 0, "defaultThreshold zero");
-        require(address(config.rewardsAddr) != address(0), "rewardsAddr missing");
         require(config.targetName != bytes32(0), "targetName missing");
         require(config.delayUntilDefault > 0, "delayUntilDefault zero");
 
@@ -72,7 +69,6 @@ contract CTokenV3Collateral is ICollateral {
         maxTradeVolume = config.maxTradeVolume;
         oracleTimeout = config.oracleTimeout;
         defaultThreshold = config.defaultThreshold;
-        rewardsAddr = config.rewardsAddr;
         prevReferencePrice = refPerTok();
         reservesThresholdIffy = config.reservesThresholdIffy;
         reservesThresholdDisabled = config.reservesThresholdDisabled;

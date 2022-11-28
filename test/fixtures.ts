@@ -301,7 +301,6 @@ interface CollateralOpts {
   chainlinkFeed?: string
   erc20?: string
   rewardERC20?: string
-  rewardsAddr?: string
   targetName?: string
   oracleTimeout?: bigint
   fallbackPrice?: bigint
@@ -315,7 +314,6 @@ interface CollateralOpts {
 const defaultCollateralOpts = {
   chainlinkFeed: USDC_USD_PRICE_FEED,
   rewardERC20: COMP,
-  rewardsAddr: REWARDS,
   targetName: ethers.utils.formatBytes32String('USD'),
   oracleTimeout: ORACLE_TIMEOUT,
   fallbackPrice: FIX_ONE,
