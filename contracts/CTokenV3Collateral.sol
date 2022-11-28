@@ -20,8 +20,8 @@ contract CTokenV3Collateral is ICollateral {
         uint192 maxTradeVolume;
         uint192 defaultThreshold;
         uint256 delayUntilDefault;
-        uint8 reservesThresholdIffy;
-        uint8 reservesThresholdDisabled;
+        uint256 reservesThresholdIffy;
+        uint256 reservesThresholdDisabled;
     }
 
     using OracleLib for AggregatorV3Interface;
@@ -33,8 +33,6 @@ contract CTokenV3Collateral is ICollateral {
     IComet public immutable comet;
 
     uint8 public immutable erc20Decimals;
-    uint8 public immutable reservesThresholdIffy;
-    uint8 public immutable reservesThresholdDisabled;
     uint48 public immutable oracleTimeout; // {s} Seconds that an oracle value is considered valid
 
     uint192 public immutable maxTradeVolume; // {UoA}
@@ -45,6 +43,8 @@ contract CTokenV3Collateral is ICollateral {
     uint256 public immutable delayUntilDefault; // {s} e.g 86400
     uint256 private constant NEVER = type(uint256).max;
     uint256 private _whenDefault = NEVER;
+    uint256 public immutable reservesThresholdIffy;
+    uint256 public immutable reservesThresholdDisabled;
 
     bytes32 public immutable targetName;
 
@@ -58,6 +58,8 @@ contract CTokenV3Collateral is ICollateral {
         require(config.defaultThreshold > 0, "defaultThreshold zero");
         require(config.targetName != bytes32(0), "targetName missing");
         require(config.delayUntilDefault > 0, "delayUntilDefault zero");
+        require(config.reservesThresholdIffy > 0, "reservesThresholdIffy zero");
+        require(config.reservesThresholdDisabled > 0, "reservesThresholdDisabled zero");
 
         targetName = config.targetName;
         delayUntilDefault = config.delayUntilDefault;
@@ -85,17 +87,14 @@ contract CTokenV3Collateral is ICollateral {
         // Check for hard default
         uint192 referencePrice = refPerTok();
         int256 cometReserves = comet.getReserves();
-        uint256 targetReserves = comet.targetReserves();
-        uint256 reservesIffy = (targetReserves * reservesThresholdIffy) / 100;
-        uint256 reservesDisabled = (targetReserves * reservesThresholdDisabled) / 100;
 
         if (
             referencePrice < prevReferencePrice ||
             cometReserves < 0 ||
-            uint256(cometReserves) <= reservesDisabled
+            uint256(cometReserves) < reservesThresholdDisabled
         ) {
             markStatus(CollateralStatus.DISABLED);
-        } else if (uint256(cometReserves) <= reservesIffy) {
+        } else if (uint256(cometReserves) < reservesThresholdIffy) {
             markStatus(CollateralStatus.IFFY);
         } else {
             try chainlinkFeed.price_(oracleTimeout) returns (uint192 p) {

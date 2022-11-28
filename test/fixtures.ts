@@ -307,8 +307,8 @@ interface CollateralOpts {
   maxTradeVolume?: bigint
   defaultThreshold?: bigint
   delayUntilDefault?: bigint
-  reservesThresholdIffy?: number
-  reservesThresholdDisabled?: number
+  reservesThresholdIffy?: bigint
+  reservesThresholdDisabled?: bigint
 }
 
 const defaultCollateralOpts: CollateralOpts = {
@@ -320,8 +320,8 @@ const defaultCollateralOpts: CollateralOpts = {
   maxTradeVolume: MAX_TRADE_VOL,
   defaultThreshold: DEFAULT_THRESHOLD,
   delayUntilDefault: DELAY_UNTIL_DEFAULT,
-  reservesThresholdIffy: 10,
-  reservesThresholdDisabled: 1,
+  reservesThresholdIffy: 10000n,
+  reservesThresholdDisabled: 5000n,
 }
 
 type Fixture<T> = () => Promise<T>
@@ -393,7 +393,7 @@ export const makeCollateralCometMock = (
     collateralOpts.chainlinkFeed = chainlinkFeed.address
 
     const CometFactory = <CometMock__factory>await ethers.getContractFactory('CometMock')
-    const cusdcV3 = <CometMock>await CometFactory.deploy(10000, 10000)
+    const cusdcV3 = <CometMock>await CometFactory.deploy(exp(5, 15), exp(1, 15))
 
     const CusdcV3WrapperFactory = <CusdcV3Wrapper__factory>(
       await ethers.getContractFactory('CusdcV3Wrapper')

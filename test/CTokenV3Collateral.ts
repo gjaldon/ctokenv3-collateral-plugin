@@ -146,7 +146,7 @@ describe('status', () => {
   })
 
   it('soft-defaults when reference unit depegs beyond threshold', async () => {
-    const { collateral, chainlinkFeed, cusdcV3 } = await loadFixture(makeCollateralCometMock())
+    const { collateral, chainlinkFeed } = await loadFixture(makeCollateralCometMock())
     const delayUntilDefault = (await collateral.delayUntilDefault()).toBigInt()
 
     // Check initial state
@@ -184,16 +184,17 @@ describe('status', () => {
 
   it('soft-defaults when compound reserves are below target reserves iffy threshold', async () => {
     const { collateral, cusdcV3 } = await loadFixture(
-      makeCollateralCometMock({ reservesThresholdIffy: 50 })
+      makeCollateralCometMock({ reservesThresholdIffy: 5000n, reservesThresholdDisabled: 1000n })
     )
     const delayUntilDefault = (await collateral.delayUntilDefault()).toBigInt()
 
     // Check initial state
+    await expect(collateral.refresh()).to.not.emit(collateral, 'DefaultStatusChanged')
     expect(await collateral.status()).to.equal(CollateralStatus.SOUND)
     expect(await collateral.whenDefault()).to.equal(ethers.constants.MaxUint256)
 
-    // cUSDC/Comet's reserves gone down to 50% of target reserves
-    await cusdcV3.setReserves(5000)
+    // cUSDC/Comet's reserves gone down below reservesThresholdIffy
+    await cusdcV3.setReserves(4000n)
 
     const nextBlockTimestamp = (await time.latest()) + 1
     await time.setNextBlockTimestamp(nextBlockTimestamp)
@@ -247,8 +248,8 @@ describe('status', () => {
   })
 
   it('hard-defaults when reserves threshold is at disabled levels', async () => {
-    const { collateral, cusdcV3, wcusdcV3 } = await loadFixture(
-      makeCollateralCometMock({ reservesThresholdDisabled: 20 })
+    const { collateral, cusdcV3 } = await loadFixture(
+      makeCollateralCometMock({ reservesThresholdDisabled: 1000n })
     )
     const [_, bob] = await ethers.getSigners()
 
@@ -257,7 +258,7 @@ describe('status', () => {
     expect(await collateral.whenDefault()).to.equal(ethers.constants.MaxUint256)
 
     // cUSDC/Comet's reserves gone down to 19% of target reserves
-    await cusdcV3.setReserves(1900)
+    await cusdcV3.setReserves(900n)
 
     await expect(collateral.refresh()).to.emit(collateral, 'DefaultStatusChanged')
     // State remains the same
