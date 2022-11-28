@@ -124,7 +124,6 @@ contract CTokenV3Collateral is ICollateral {
         // No interactions beyond the initial refresher
     }
 
-    /// @dev Since cUSDCv3 has an exchange rate of 1:1 with USDC, then {UoA/tok} = {UoA/ref}.
     function strictPrice() public view returns (uint192) {
         return chainlinkFeed.price(oracleTimeout).mul(refPerTok());
     }
