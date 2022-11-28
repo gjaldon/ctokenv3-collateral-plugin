@@ -1,13 +1,18 @@
 {
   "name": "ctokenv3-collateral",
   "version": "1.0.0",
-  "description": "",
+  "description": "A Reserve Collateral Plugin for Compound III",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "reserve",
+    "defi",
+    "ethereum"
+  ],
+  "author": "Gabriel Jaldon (https://github.com/gjaldon)",
+  "respository": "https://github.com/gjaldon/ctokenv3-collateral-plugin",
   "license": "ISC",
   "devDependencies": {
     "@chainlink/contracts": "^0.5.1",
