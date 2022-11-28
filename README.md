@@ -83,3 +83,8 @@ Below are Slither warnings that were hidden since they were found to be non-issu
 `CusdcV3Wrapper (contracts/CusdcV3Wrapper.sol) should inherit from ICusdcV3Wrapper (contracts/ICusdcV3Wrapper.sol)`
 
 - `ICusdcV3Wrapper` is only used by `CTokenV3Collateral` to interface with `CusdcV3Wrapper`.
+
+### Social Media
+
+- Twitter - https://twitter.com/gjaldon
+- Discord - gjaldon#9165
