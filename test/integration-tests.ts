@@ -20,10 +20,10 @@ import {
 import { makeReserveProtocol, deployCollateral } from './fixtures'
 
 describe('integration tests', () => {
-  before(resetFork)
+  beforeEach(resetFork)
 
   it('sets up assets', async () => {
-    const { compAsset, compToken, rsrAsset, rsr } = await loadFixture(makeReserveProtocol)
+    const { compAsset, compToken, rsrAsset, rsr } = await makeReserveProtocol()
     // COMP Token
     expect(await compAsset.isCollateral()).to.equal(false)
     expect(await compAsset.erc20()).to.equal(COMP)
@@ -42,7 +42,7 @@ describe('integration tests', () => {
   })
 
   it('sets up collateral', async () => {
-    const { collateral, wcusdcV3 } = await loadFixture(makeReserveProtocol)
+    const { collateral, wcusdcV3 } = await makeReserveProtocol()
     expect(await collateral.isCollateral()).to.equal(true)
     expect(await collateral.erc20()).to.equal(wcusdcV3.address)
     expect(await wcusdcV3.decimals()).to.equal(6)
@@ -52,14 +52,13 @@ describe('integration tests', () => {
     expect(await collateral.strictPrice()).to.be.closeTo(FIX_ONE, exp(5, 16)) // Should always be close to $1
 
     expect(await collateral.rewardERC20()).to.equal(COMP)
-    expect(await collateral.rewardsAddr()).to.equal(REWARDS)
     expect(await collateral.maxTradeVolume()).to.equal(MAX_TRADE_VOL)
   })
 
   const NO_PRICE_DATA_FEED = '0x51597f405303C4377E36123cBc172b13269EA163'
 
   it('handles invalid/stale price - collateral', async () => {
-    const { collateral, chainlinkFeed } = await loadFixture(makeReserveProtocol)
+    const { collateral, chainlinkFeed } = await makeReserveProtocol()
     // Reverts with stale price
     await time.increase(ORACLE_TIMEOUT)
     await expect(collateral.strictPrice()).to.be.revertedWithCustomError(collateral, 'StalePrice')
@@ -98,9 +97,8 @@ describe('integration tests', () => {
   })
 
   it('registers ERC20s and Assets/Collateral', async () => {
-    const { collateral, assetRegistry, rTokenAsset, rsrAsset, compAsset } = await loadFixture(
-      makeReserveProtocol
-    )
+    const { collateral, assetRegistry, rTokenAsset, rsrAsset, compAsset } =
+      await makeReserveProtocol()
     // Check assets/collateral
     const ERC20s = await assetRegistry.erc20s()
 
@@ -173,9 +171,8 @@ describe('integration tests', () => {
   })
 
   it('issues/reedems with simple basket', async function () {
-    const { cusdcV3, usdc, rToken, facadeTest, backingManager, wcusdcV3 } = await loadFixture(
-      makeReserveProtocol
-    )
+    const { cusdcV3, usdc, rToken, facadeTest, backingManager, wcusdcV3 } =
+      await makeReserveProtocol()
     const [_, bob] = await ethers.getSigners()
 
     // Check balances before
@@ -247,9 +244,8 @@ describe('integration tests', () => {
   })
 
   it('claims rewards - COMP', async () => {
-    const { cusdcV3, usdc, rToken, backingManager, wcusdcV3, compToken } = await loadFixture(
-      makeReserveProtocol
-    )
+    const { cusdcV3, usdc, rToken, backingManager, wcusdcV3, compToken } =
+      await makeReserveProtocol()
     const [_, bob] = await ethers.getSigners()
 
     // Try to claim rewards at this point - Nothing for Backing Manager
@@ -277,7 +273,6 @@ describe('integration tests', () => {
     await enableRewardsAccrual(cusdcV3)
 
     // Claim rewards
-    // await backingManager.claimAndSweepRewards()
     await expect(await backingManager.claimRewards()).to.emit(backingManager, 'RewardsClaimed')
 
     // Check rewards both in COMP
