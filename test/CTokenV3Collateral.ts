@@ -25,6 +25,30 @@ describe('constructor validation', () => {
     ).to.be.revertedWith('targetName missing')
   })
 
+  it('does not allow missing ERC20', async () => {
+    await expect(deployCollateral({ erc20: ethers.constants.AddressZero })).to.be.revertedWith(
+      'missing erc20'
+    )
+  })
+
+  it('does not allow missing chainlink feed', async () => {
+    await expect(
+      deployCollateral({ erc20: CUSDC_V3, chainlinkFeed: ethers.constants.AddressZero })
+    ).to.be.revertedWith('missing chainlink feed')
+  })
+
+  it('max trade volume must be greater than zero', async () => {
+    await expect(deployCollateral({ erc20: CUSDC_V3, maxTradeVolume: 0n })).to.be.revertedWith(
+      'invalid max trade volume'
+    )
+  })
+
+  it('does not allow oracle timeout at 0', async () => {
+    await expect(deployCollateral({ erc20: CUSDC_V3, oracleTimeout: 0n })).to.be.revertedWith(
+      'oracleTimeout zero'
+    )
+  })
+
   it('does not allow missing defaultThreshold', async () => {
     await expect(deployCollateral({ erc20: CUSDC_V3, defaultThreshold: 0n })).to.be.revertedWith(
       'defaultThreshold zero'
@@ -41,6 +65,18 @@ describe('constructor validation', () => {
     await expect(
       deployCollateral({ erc20: CUSDC_V3, rewardERC20: ethers.constants.AddressZero })
     ).to.be.revertedWith('rewardERC20 missing')
+  })
+
+  it('does not allow 0 reservesThresholdIffy', async () => {
+    await expect(
+      deployCollateral({ erc20: CUSDC_V3, reservesThresholdIffy: 0n })
+    ).to.be.revertedWith('reservesThresholdIffy zero')
+  })
+
+  it('does not allow 0 reservesThresholdDisabled', async () => {
+    await expect(
+      deployCollateral({ erc20: CUSDC_V3, reservesThresholdDisabled: 0n })
+    ).to.be.revertedWith('reservesThresholdDisabled zero')
   })
 })
 
