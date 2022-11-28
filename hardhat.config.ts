@@ -8,14 +8,28 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
-const MAINNET_RPC_URL = process.env.MAINNET_RPC_URL || ''
+const { MAINNET_RPC_URL, MNEMONIC, GOERLI_RPC_URL } = process.env
 
 const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       forking: {
-        url: MAINNET_RPC_URL,
+        url: MAINNET_RPC_URL || '',
         blockNumber: 15850930,
+      },
+    },
+    mainnet: {
+      chainId: 1,
+      url: MAINNET_RPC_URL,
+      accounts: {
+        mnemonic: MNEMONIC,
+      },
+    },
+    goerli: {
+      chainId: 5,
+      url: GOERLI_RPC_URL,
+      accounts: {
+        mnemonic: MNEMONIC,
       },
     },
   },

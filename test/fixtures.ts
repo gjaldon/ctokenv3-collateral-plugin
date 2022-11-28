@@ -311,7 +311,7 @@ interface CollateralOpts {
   reservesThresholdDisabled?: number
 }
 
-const defaultCollateralOpts = {
+const defaultCollateralOpts: CollateralOpts = {
   chainlinkFeed: USDC_USD_PRICE_FEED,
   rewardERC20: COMP,
   targetName: ethers.utils.formatBytes32String('USD'),
