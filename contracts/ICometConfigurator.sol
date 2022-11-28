@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: ISC
 pragma solidity 0.8.17;
 
 interface ICometConfigurator {
@@ -38,6 +38,8 @@ interface ICometConfigurator {
 
     function getConfiguration(address cometProxy) external view returns (Configuration memory);
 
-    function setBaseTrackingSupplySpeed(address cometProxy, uint64 newBaseTrackingSupplySpeed)
-        external;
+    function setBaseTrackingSupplySpeed(
+        address cometProxy,
+        uint64 newBaseTrackingSupplySpeed
+    ) external;
 }

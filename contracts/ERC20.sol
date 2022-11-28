@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: ISC
 pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -119,13 +119,10 @@ contract WrappedERC20 is IERC20 {
     /**
      * @dev See {IERC20-allowance}.
      */
-    function allowance(address owner, address spender)
-        public
-        view
-        virtual
-        override
-        returns (uint256)
-    {
+    function allowance(
+        address owner,
+        address spender
+    ) public view virtual override returns (uint256) {
         return hasPermission(owner, spender) ? type(uint256).max : 0;
     }
 
@@ -190,11 +187,7 @@ contract WrappedERC20 is IERC20 {
      * - `to` cannot be the zero address.
      * - `from` must have a balance of at least `amount`.
      */
-    function _transfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal virtual {
+    function _transfer(address from, address to, uint256 amount) internal virtual {
         if (from == address(0)) revert ZeroAddress();
         if (to == address(0)) revert ZeroAddress();
 
@@ -278,11 +271,7 @@ contract WrappedERC20 is IERC20 {
      * - `owner` cannot be the zero address.
      * - `manager` cannot be the zero address.
      */
-    function _allow(
-        address owner,
-        address manager,
-        bool isAllowed_
-    ) internal {
+    function _allow(address owner, address manager, bool isAllowed_) internal {
         if (owner == address(0)) revert ZeroAddress();
         if (manager == address(0)) revert ZeroAddress();
 
@@ -309,9 +298,5 @@ contract WrappedERC20 is IERC20 {
      * - when `to` is zero, `amount` of ``from``'s tokens will be burned.
      * - `from` and `to` are never both zero.
      */
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal virtual {}
+    function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual {}
 }
